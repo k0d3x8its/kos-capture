@@ -1,0 +1,30 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.egg-info/
+dist/
+build/
+
+# Venv
+.venv/
+
+# Pytest
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Textual
+.textual/
+
+# Audio/video — never commit transcription inputs
+*.mp3
+*.mp4
+*.wav
+*.m4a
+*.webm
+
+# OS
+.DS_Store
+Thumbs.db
