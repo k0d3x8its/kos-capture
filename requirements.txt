@@ -3,3 +3,4 @@ pyfiglet
 tomli
 faster-whisper
 yt-dlp
+pytest-asyncio
