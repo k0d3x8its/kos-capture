@@ -20,12 +20,19 @@ On failure: displays all validation errors inline without clearing the inputs.
 
 import core.config as config
 from textual.app import ComposeResult
+from textual.binding import Binding
 from textual.containers import Vertical
 from textual.screen import Screen
 from textual.widgets import Button, Input, Label, Static
 
 
 class SetupScreen(Screen):
+
+    BINDINGS = [
+        # Escape only goes back when re-configuring — on first run there is
+        # no previous screen to return to, so pressing Escape does nothing.
+        Binding("escape", "go_back", "Back", show=False),
+    ]
 
     DEFAULT_CSS = """
     SetupScreen {
@@ -95,6 +102,11 @@ class SetupScreen(Screen):
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "save-btn":
             self._save()
+
+    def action_go_back(self) -> None:
+        """Pop back to Home — only valid when re-configuring, not first run."""
+        if config.exists():
+            self.app.pop_screen()
 
     def on_input_submitted(self, event: Input.Submitted) -> None:
         """Allow pressing Enter in either input field to trigger save."""
