@@ -1,4 +1,4 @@
-# kos-capture
+# KOS Capture
 
 <div style="display: flex; gap: 10px;">
 <img alt="CI" src="https://github.com/k0d3x8its/kos-capture/actions/workflows/ci.yml/badge.svg?branch=main">
