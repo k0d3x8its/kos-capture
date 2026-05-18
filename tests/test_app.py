@@ -8,14 +8,16 @@ This keeps the suite fast and avoids the async overhead of App.run_test()
 for what are essentially configuration checks.
 """
 
-from app import KosCaptureApp
+from unittest.mock import MagicMock, patch
+
+from app import KosCaptureApp, TERMINAL_GREEN
 from screens.home import HomeScreen
+from screens.inbox import InboxScreen
+from screens.ready import ReadyScreen
 from screens.setup import SetupScreen
 from screens.sync import SyncScreen
-from screens.inbox import InboxScreen
-from screens.wizard import WizardScreen
 from screens.transcribe import TranscribeScreen
-from screens.ready import ReadyScreen
+from screens.wizard import WizardScreen
 
 
 def test_app_title():
@@ -52,3 +54,40 @@ def test_nav_bindings_exist():
     keys = {b.key for b in KosCaptureApp.BINDINGS}
     for key in ("h", "s", "i", "t"):
         assert key in keys, f"Missing nav binding: {key}"
+
+
+def test_terminal_green_theme_name():
+    """TERMINAL_GREEN theme has the correct name for registration."""
+    assert TERMINAL_GREEN.name == "terminal-green"
+
+
+def test_terminal_green_is_dark():
+    """TERMINAL_GREEN theme is flagged as a dark theme."""
+    assert TERMINAL_GREEN.dark is True
+
+
+def test_on_mount_registers_theme_and_routes_to_setup():
+    """on_mount() registers the theme, sets it, and pushes setup when no config."""
+    app = KosCaptureApp()
+    # wraps=... calls the real register_theme so the theme is actually registered
+    # (required for self.theme = "terminal-green" to pass validation), while
+    # still letting us assert it was called with the right argument.
+    with patch("app.config.exists", return_value=False), \
+         patch.object(app, "push_screen") as mock_push, \
+         patch.object(app, "register_theme", wraps=app.register_theme) as mock_register:
+        app.on_mount()
+    mock_register.assert_called_once_with(TERMINAL_GREEN)
+    assert app.theme == "terminal-green"
+    mock_push.assert_called_once_with("setup")
+
+
+def test_on_mount_registers_theme_and_routes_to_home():
+    """on_mount() registers the theme, sets it, and pushes home when config exists."""
+    app = KosCaptureApp()
+    with patch("app.config.exists", return_value=True), \
+         patch.object(app, "push_screen") as mock_push, \
+         patch.object(app, "register_theme", wraps=app.register_theme) as mock_register:
+        app.on_mount()
+    mock_register.assert_called_once_with(TERMINAL_GREEN)
+    assert app.theme == "terminal-green"
+    mock_push.assert_called_once_with("home")
