@@ -1,0 +1,5 @@
+textual
+pyfiglet
+tomli
+faster-whisper
+yt-dlp
