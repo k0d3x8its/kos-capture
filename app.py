@@ -16,6 +16,8 @@ Screen navigation model:
       respectively, then popped when the flow completes.
 """
 
+from pathlib import Path
+
 import core.config as config
 from textual.app import App
 from textual.binding import Binding
@@ -74,6 +76,7 @@ class KosCaptureApp(App):
     ]
 
     def on_mount(self) -> None:
+        self.session_results: list[Path] = []
         """Apply theme and route to the correct initial screen.
 
         push_screen() requires the app to be running — calling it before
