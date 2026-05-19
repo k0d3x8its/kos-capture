@@ -254,7 +254,10 @@ class HomeScreen(Screen):
         )
 
         if status.last_sync:
-            sync_str = status.last_sync.strftime("%Y-%m-%d %I:%M %p")
+            _dt = status.last_sync
+            _h  = _dt.hour
+            sync_str = (f"{_dt.year}-{_dt.month:02d}-{_dt.day:02d} "
+                        f"{_h % 12 or 12}:{_dt.minute:02d} {'AM' if _h < 12 else 'PM'}")
             self.query_one("#status-sync", Static).update(
                 _status_line(True, f"last sync  {sync_str}")
             )
