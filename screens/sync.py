@@ -181,13 +181,13 @@ class SyncScreen(Screen):
                 if worker.is_cancelled:
                     proc.terminate()
                     break
-                self.call_from_thread(log.write, line.rstrip())
+                self.app.call_from_thread(log.write, line.rstrip())
             proc.wait()
             exit_code = proc.returncode
         except Exception as exc:
-            self.call_from_thread(log.write, f"[red]Error: {exc}[/red]")
+            self.app.call_from_thread(log.write, f"[red]Error: {exc}[/red]")
 
-        self.call_from_thread(self._on_sync_complete, exit_code)
+        self.app.call_from_thread(self._on_sync_complete, exit_code)
 
     def _on_sync_complete(self, exit_code: int) -> None:
         """Called on the main thread after the worker finishes."""
