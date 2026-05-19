@@ -79,6 +79,31 @@ def test_write_content(tmp_path):
     assert 'remote_path  = "Photos/Field-Notes"' in content
 
 
+# --- tilde expansion ---
+
+def test_validate_tilde_path_resolves(tmp_path, monkeypatch):
+    """validate() expands ~ so home-relative paths that exist pass validation."""
+    monkeypatch.setenv("HOME", str(tmp_path))
+    proton = tmp_path / "proton"; proton.mkdir()
+    vault  = tmp_path / "vault";  vault.mkdir()
+    errors = config.validate("~/proton", "~/vault", "Photos/X")
+    assert errors == []
+
+
+def test_write_expands_tilde(tmp_path, monkeypatch):
+    """write() stores absolute paths — ~ is never written to the config file."""
+    monkeypatch.setenv("HOME", str(tmp_path))
+    proton = tmp_path / "proton"; proton.mkdir()
+    vault  = tmp_path / "vault";  vault.mkdir()
+    cfg_path = tmp_path / "config.toml"
+    with patch.object(config, "CONFIG_PATH", cfg_path):
+        config.write("~/proton", "~/vault", "Photos/X")
+    content = cfg_path.read_text()
+    assert "~" not in content
+    assert str(proton) in content
+    assert str(vault) in content
+
+
 # --- load() ---
 
 def test_write_and_load_roundtrip(tmp_path):
