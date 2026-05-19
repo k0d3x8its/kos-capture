@@ -185,14 +185,17 @@ class InboxScreen(Screen):
 
         if not self._pdfs:
             self.query_one("#message", Static).update(
-                "[dim]No PDFs found — sync from Proton Drive first.[/dim]"
+                "[bold #00ff00]No PDFs found — sync from Proton Drive first.[/bold #00ff00]"
             )
             return
 
         count = len(self._pdfs)
-        noun = "PDFs" if count != 1 else "PDF"
+        if count == 1:
+            icon, noun = "🗏", "PDF"
+        else:
+            icon, noun = "🗐", "PDFs"
         self.query_one("#message", Static).update(
-            f"[black on #00ff41]  {count} {noun} ready to process  [/black on #00ff41]"
+            f"[black on #00ff41]  {icon} {count} {noun} ready to process  [/black on #00ff41]"
         )
 
         for pdf in self._pdfs:
