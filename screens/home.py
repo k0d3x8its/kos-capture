@@ -235,9 +235,9 @@ class HomeScreen(Screen):
         self.app.push_screen("setup")
 
     def action_refresh_status(self) -> None:
-        self._update_status(show_errors=True)
+        self._update_status(show_errors=True, show_notification=True)
 
-    def _update_status(self, show_errors: bool = False) -> None:
+    def _update_status(self, show_errors: bool = False, show_notification: bool = False) -> None:
         """Query core modules and update each status widget."""
         status = rclone.status()
 
@@ -276,6 +276,8 @@ class HomeScreen(Screen):
                 ErrorModal(f"{config_error}\n\nOpen Setup to fix your configuration."),
                 self._on_error_modal_dismiss,
             )
+        elif show_notification and status.installed and vault_ok:
+            self.notify("All systems connected.", severity="information")
 
     def _on_error_modal_dismiss(self, result: str | None) -> None:
         if result == "setup":

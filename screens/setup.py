@@ -20,6 +20,8 @@ On failure: displays all validation errors inline without clearing inputs.
 """
 
 import core.config as config
+import core.rclone as rclone
+from textual import work
 from textual.app import ComposeResult
 from textual.binding import Binding
 from textual.containers import Vertical
@@ -109,7 +111,8 @@ class SetupScreen(Screen):
             yield Static("", id="errors")
             yield Button("Save", id="save-btn", variant="primary")
 
-    def on_mount(self) -> None:
+    def on_show(self) -> None:
+        self.query_one("#errors", Static).update("")
         if config.exists():
             try:
                 cfg = config.load()
@@ -138,6 +141,7 @@ class SetupScreen(Screen):
         vault = self.query_one("#vault-root", Input).value.strip()
         remote = self.query_one("#remote-path", Input).value.strip()
         errors_widget = self.query_one("#errors", Static)
+        errors_widget.update("")
 
         if not proton or not vault or not remote:
             errors_widget.update("All three fields are required.")
@@ -148,5 +152,25 @@ class SetupScreen(Screen):
             errors_widget.update("\n".join(errors))
             return
 
-        config.write(proton, vault, remote)
-        self.app.switch_screen("home")
+        errors_widget.update("[yellow]Connecting to Proton Drive...[/yellow]")
+        self.query_one("#save-btn", Button).disabled = True
+        self._run_remote_check(proton, vault, remote)
+
+    @work(thread=True)
+    def _run_remote_check(self, proton: str, vault: str, remote: str) -> None:
+        ok = rclone.check_remote(remote)
+        self.app.call_from_thread(self._on_remote_check_done, ok, proton, vault, remote)
+
+    def _on_remote_check_done(self, ok: bool, proton: str, vault: str, remote: str) -> None:
+        self.query_one("#save-btn", Button).disabled = False
+        errors_widget = self.query_one("#errors", Static)
+        if ok:
+            errors_widget.update("")
+            config.write(proton, vault, remote)
+            self.notify("Configuration saved.", severity="information", timeout=2)
+            self.set_timer(2.0, lambda: self.app.switch_screen("home"))
+        else:
+            errors_widget.update(
+                f"[red]Remote path not found on Proton Drive: {remote}\n"
+                "Check the path and ensure rclone is connected.[/red]"
+            )

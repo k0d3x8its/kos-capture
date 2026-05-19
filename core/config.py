@@ -68,8 +68,13 @@ def validate(proton_drive: str, vault_root: str, remote_path: str) -> list[str]:
         errors.append(f"Proton Drive path not found: {proton_drive}")
     if not Path(vault_root).expanduser().exists():
         errors.append(f"Vault root not found: {vault_root}")
-    if not remote_path.strip():
+    remote = remote_path.strip()
+    if not remote:
         errors.append("Remote path is required (e.g. Photos/Field-Notes).")
+    elif remote.startswith("/"):
+        errors.append("Remote path must not start with / (e.g. Photos/Field-Notes).")
+    elif ".." in remote:
+        errors.append("Remote path must not contain '..'.")
     return errors
 
 

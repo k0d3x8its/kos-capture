@@ -126,3 +126,43 @@ def test_trigger_sync_strips_leading_slash(tmp_path):
         rclone.trigger_sync(tmp_path, "/Photos/Field-Notes")
         args = mock_popen.call_args[0][0]
         assert args[2] == "proton:Photos/Field-Notes"
+
+
+# --- check_remote() ---
+
+def test_check_remote_returns_true_on_exit_zero():
+    """check_remote() returns True when rclone lsf exits 0 (path exists)."""
+    result = MagicMock()
+    result.returncode = 0
+    with patch("subprocess.run", return_value=result):
+        assert rclone.check_remote("Photos/Field-Notes") is True
+
+
+def test_check_remote_returns_false_on_nonzero_exit():
+    """check_remote() returns False when rclone lsf exits non-zero (path missing)."""
+    result = MagicMock()
+    result.returncode = 3
+    with patch("subprocess.run", return_value=result):
+        assert rclone.check_remote("Photos/Field-Notes") is False
+
+
+def test_check_remote_returns_false_when_binary_missing():
+    """check_remote() returns False when rclone is not installed."""
+    with patch("subprocess.run", side_effect=FileNotFoundError):
+        assert rclone.check_remote("Photos/Field-Notes") is False
+
+
+def test_check_remote_returns_false_on_timeout():
+    """check_remote() returns False when the rclone call times out."""
+    with patch("subprocess.run", side_effect=subprocess.TimeoutExpired(cmd="rclone", timeout=15)):
+        assert rclone.check_remote("Photos/Field-Notes") is False
+
+
+def test_check_remote_builds_correct_source():
+    """check_remote() prefixes path with remote name and strips leading slash."""
+    result = MagicMock()
+    result.returncode = 0
+    with patch("subprocess.run", return_value=result) as mock_run:
+        rclone.check_remote("/Photos/Field-Notes")
+        args = mock_run.call_args[0][0]
+        assert args[2] == "proton:Photos/Field-Notes"

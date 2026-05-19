@@ -68,6 +68,33 @@ async def test_existing_config_prefills_inputs(tmp_path):
             assert pilot.app.screen.query_one("#remote-path", Input).value == "Photos/Field-Notes"
 
 
+async def test_error_clears_on_next_save_attempt(tmp_path):
+    """Errors from a previous failed save are cleared when Save is clicked again."""
+    proton = tmp_path / "proton"; proton.mkdir()
+    vault  = tmp_path / "vault";  vault.mkdir()
+
+    with patch("app.config.exists", return_value=False), \
+         patch("screens.setup.config.write"), \
+         patch("screens.setup.config.validate", return_value=[]), \
+         patch("screens.setup.rclone.check_remote", return_value=True):
+        async with KosCaptureApp().run_test() as pilot:
+            await pilot.pause()
+            # First save with empty fields — produces error
+            pilot.app.screen.query_one("#save-btn", Button).press()
+            await pilot.pause()
+            errors = str(pilot.app.screen.query_one("#errors", Static).content)
+            assert errors != ""
+            # Fill valid values and save again — old error must be gone immediately
+            pilot.app.screen.query_one("#proton-drive", Input).value = str(proton)
+            pilot.app.screen.query_one("#vault-root", Input).value = str(vault)
+            pilot.app.screen.query_one("#remote-path", Input).value = "Photos/Field-Notes"
+            pilot.app.screen.query_one("#save-btn", Button).press()
+            await pilot.pause()
+            # Error widget now shows "Connecting..." — old error is gone
+            errors = str(pilot.app.screen.query_one("#errors", Static).content)
+            assert "required" not in errors.lower()
+
+
 async def test_valid_paths_call_config_write(tmp_path):
     """Submitting valid inputs calls config.write() with all three arguments."""
     proton = tmp_path / "proton"; proton.mkdir()
@@ -75,12 +102,69 @@ async def test_valid_paths_call_config_write(tmp_path):
 
     with patch("app.config.exists", return_value=False), \
          patch("screens.setup.config.write") as mock_write, \
-         patch("screens.setup.config.validate", return_value=[]):
+         patch("screens.setup.config.validate", return_value=[]), \
+         patch("screens.setup.rclone.check_remote", return_value=True):
         async with KosCaptureApp().run_test() as pilot:
             await pilot.pause()
             pilot.app.screen.query_one("#proton-drive", Input).value = str(proton)
             pilot.app.screen.query_one("#vault-root", Input).value = str(vault)
             pilot.app.screen.query_one("#remote-path", Input).value = "Photos/Field-Notes"
             pilot.app.screen.query_one("#save-btn", Button).press()
+            await pilot.pause()  # worker starts
+            await pilot.pause()  # call_from_thread fires _on_remote_check_done
+            mock_write.assert_called_once_with(str(proton), str(vault), "Photos/Field-Notes")
+
+
+async def test_connecting_message_shown_during_remote_check(tmp_path):
+    """After local validation passes, 'Connecting' message appears and Save is disabled."""
+    import threading
+    proton = tmp_path / "proton"; proton.mkdir()
+    vault  = tmp_path / "vault";  vault.mkdir()
+
+    # Block check_remote in its worker thread so we can observe the transient state.
+    gate = threading.Event()
+
+    def slow_check(remote_path):
+        gate.wait(timeout=5)
+        return True
+
+    with patch("app.config.exists", return_value=False), \
+         patch("screens.setup.config.validate", return_value=[]), \
+         patch("screens.setup.rclone.check_remote", side_effect=slow_check), \
+         patch("screens.setup.config.write"):
+        async with KosCaptureApp().run_test() as pilot:
             await pilot.pause()
-        mock_write.assert_called_once_with(str(proton), str(vault), "Photos/Field-Notes")
+            pilot.app.screen.query_one("#proton-drive", Input).value = str(proton)
+            pilot.app.screen.query_one("#vault-root", Input).value = str(vault)
+            pilot.app.screen.query_one("#remote-path", Input).value = "Photos/Field-Notes"
+            pilot.app.screen.query_one("#save-btn", Button).press()
+            await pilot.pause()  # _save() runs; worker blocks at gate.wait()
+            errors = str(pilot.app.screen.query_one("#errors", Static).content)
+            assert "connecting" in errors.lower()
+            assert pilot.app.screen.query_one("#save-btn", Button).disabled
+            gate.set()           # release worker
+            await pilot.pause()  # worker completes, call_from_thread queued
+            await pilot.pause()  # _on_remote_check_done fires
+
+
+async def test_remote_not_found_shows_error_and_re_enables_button(tmp_path):
+    """When check_remote returns False, an error is shown, Save re-enables, config not written."""
+    proton = tmp_path / "proton"; proton.mkdir()
+    vault  = tmp_path / "vault";  vault.mkdir()
+
+    with patch("app.config.exists", return_value=False), \
+         patch("screens.setup.config.validate", return_value=[]), \
+         patch("screens.setup.rclone.check_remote", return_value=False), \
+         patch("screens.setup.config.write") as mock_write:
+        async with KosCaptureApp().run_test() as pilot:
+            await pilot.pause()
+            pilot.app.screen.query_one("#proton-drive", Input).value = str(proton)
+            pilot.app.screen.query_one("#vault-root", Input).value = str(vault)
+            pilot.app.screen.query_one("#remote-path", Input).value = "Photos/Bad-Path"
+            pilot.app.screen.query_one("#save-btn", Button).press()
+            await pilot.pause()  # worker starts
+            await pilot.pause()  # _on_remote_check_done fires
+            errors = str(pilot.app.screen.query_one("#errors", Static).content)
+            assert "not found" in errors.lower()
+            assert not pilot.app.screen.query_one("#save-btn", Button).disabled
+            mock_write.assert_not_called()

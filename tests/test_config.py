@@ -56,6 +56,22 @@ def test_validate_remote_empty(tmp_path):
     assert "remote" in errors[0].lower()
 
 
+def test_validate_remote_leading_slash(tmp_path):
+    proton = tmp_path / "proton"; proton.mkdir()
+    vault  = tmp_path / "vault";  vault.mkdir()
+    errors = config.validate(str(proton), str(vault), "/Photos/Field-Notes")
+    assert len(errors) == 1
+    assert "not start with /" in errors[0]
+
+
+def test_validate_remote_dotdot(tmp_path):
+    proton = tmp_path / "proton"; proton.mkdir()
+    vault  = tmp_path / "vault";  vault.mkdir()
+    errors = config.validate(str(proton), str(vault), "Photos/../Field-Notes")
+    assert len(errors) == 1
+    assert ".." in errors[0]
+
+
 def test_validate_all_valid(tmp_path):
     proton = tmp_path / "proton"; proton.mkdir()
     vault  = tmp_path / "vault";  vault.mkdir()

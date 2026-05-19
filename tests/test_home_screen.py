@@ -206,6 +206,31 @@ async def test_refresh_with_bad_config_shows_modal():
             assert pilot.app.screen.__class__.__name__ == "ErrorModal"
 
 
+async def test_refresh_all_ok_shows_notification(tmp_path):
+    """Pressing 'r' when all systems OK triggers a notify toast."""
+    vault = tmp_path / "vault"
+    vault.mkdir()
+    status = _make_status(installed=True, timer=True)
+
+    from unittest.mock import MagicMock
+    mock_cfg = MagicMock()
+    mock_cfg.vault_root = vault
+
+    with patch("app.config.exists", return_value=False), \
+         patch("screens.home.rclone.status", return_value=status), \
+         patch("screens.home.config.exists", return_value=True), \
+         patch("screens.home.config.load", return_value=mock_cfg):
+        async with KosCaptureApp().run_test() as pilot:
+            await pilot.pause()
+            await _open_home(pilot)
+            with patch.object(pilot.app.screen, "notify") as mock_notify:
+                await pilot.press("r")
+                await pilot.pause()
+                mock_notify.assert_called_once()
+                args, kwargs = mock_notify.call_args
+                assert "connected" in args[0].lower()
+
+
 async def test_t_key_navigates_to_transcribe():
     """Pressing 't' switches to the Transcribe screen."""
     status = _make_status()

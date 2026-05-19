@@ -115,6 +115,29 @@ def status() -> RcloneStatus:
     )
 
 
+def check_remote(remote_path: str, remote: str = "proton:") -> bool:
+    """
+    Return True if remote_path exists and is reachable on the rclone remote.
+
+    Runs `rclone lsf <remote><remote_path> --max-depth 1`.  Exit code 0 means
+    the path exists (folder may be empty); any other exit code — path missing,
+    auth failure, network error, binary not found — returns False.
+
+    Timeout is capped at 15 s so a hung connection doesn't freeze the UI
+    (called from a worker thread, not the main thread).
+    """
+    source = f"{remote}{remote_path.strip('/')}"
+    try:
+        result = subprocess.run(
+            ["rclone", "lsf", source, "--max-depth", "1"],
+            capture_output=True,
+            timeout=15,
+        )
+        return result.returncode == 0
+    except (FileNotFoundError, subprocess.TimeoutExpired, OSError):
+        return False
+
+
 def trigger_sync(
     proton_drive: Path,
     remote_path: str,
