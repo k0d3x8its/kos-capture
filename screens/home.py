@@ -4,13 +4,12 @@ screens/home.py
 Home screen — first screen seen after setup completes.
 
 Shows:
-  - ASCII art title via pyfiglet (roman font)
-  - System status summary: rclone installed, sync timer active,
-    vault detected, last sync time
-  - Keybinding hints via Footer
+  - ASCII art title via pyfiglet (ansi_shadow + calvin_s)
+  - Centered navigation menu with arrow key selection or letter shortcuts
+  - Compact system status panel below the menu
 
-'r' refreshes status in-place without leaving the screen.
-'c' opens the Setup/Config screen.
+Navigation: Up/Down to move, Enter to select — or press the letter key directly.
+ctrl+q to quit (app-level binding).
 """
 
 import pyfiglet
@@ -21,7 +20,7 @@ from textual.app import ComposeResult
 from textual.binding import Binding
 from textual.containers import Center, Vertical
 from textual.screen import Screen
-from textual.widgets import Footer, Static
+from textual.widgets import Label, ListItem, ListView, Static
 
 
 def _status_line(ok: bool, label: str) -> str:
@@ -30,13 +29,26 @@ def _status_line(ok: bool, label: str) -> str:
     return f"  {icon}  {label}"
 
 
+# (rich_label, item_id) — all items padded to 16 chars so text-align: center works uniformly
+# \[ escapes to a literal [ in Rich markup
+_NAV_ITEMS = [
+    ("\\[s]---------Sync",   "nav-sync"),
+    ("\\[i]--------Inbox",   "nav-inbox"),
+    ("\\[t]---Transcribe",   "nav-transcribe"),
+    ("\\[c]-------Config",   "nav-config"),
+    ("\\[r]------Refresh",   "nav-refresh"),
+    ("\\[^q]--------Quit",   "nav-quit"),
+]
+
+
 class HomeScreen(Screen):
 
     BINDINGS = [
-        # Defined as methods below so Screen-level bindings fire reliably
-        # regardless of which child widget holds focus.
-        Binding("r", "refresh_status", "Refresh"),
-        Binding("c", "open_config", "Config"),
+        Binding("s", "go_sync",        show=False),
+        Binding("i", "go_inbox",       show=False),
+        Binding("t", "go_transcribe",  show=False),
+        Binding("c", "go_config",      show=False),
+        Binding("r", "refresh_status", show=False),
     ]
 
     DEFAULT_CSS = """
@@ -55,6 +67,7 @@ class HomeScreen(Screen):
         color: $primary;
         width: 100%;
         padding: 0;
+        margin-top: 1;
         margin-bottom: 0;
     }
 
@@ -82,24 +95,79 @@ class HomeScreen(Screen):
         margin-bottom: 1;
     }
 
+    #nav-panel {
+        width: 40;
+        height: auto;
+        border: double $primary;
+        padding: 1 1;
+        margin-bottom: 1;
+    }
+
+    #nav-title {
+        text-style: bold;
+        text-align: center;
+        height: 1;
+        padding: 0;
+        margin-bottom: 0;
+    }
+
+    #nav-separator {
+        text-align: center;
+        color: $primary;
+        height: 1;
+        padding: 0;
+        margin-bottom: 1;
+    }
+
+    #nav-list {
+        height: auto;
+        width: 100%;
+        background: transparent;
+        border: none;
+        padding: 0;
+        margin: 0;
+    }
+
+    #nav-list > ListItem {
+        background: transparent;
+        height: 1;
+        padding: 0;
+        width: 100%;
+    }
+
+    #nav-list > ListItem > Label {
+        width: 100%;
+        text-align: center;
+    }
+
+    #nav-list > ListItem.--highlight {
+        background: $primary 20%;
+        color: $primary;
+    }
+
     #status-panel {
         width: 52;
         height: auto;
-        border: round $primary;
-        padding: 1 2;
+        border: round $panel;
+        padding: 0 2;
         margin-bottom: 1;
     }
 
     #status-title {
-        text-style: bold;
+        text-style: bold dim;
         text-align: center;
-        margin-bottom: 1;
+        color: $text-muted;
+        height: 1;
+    }
+
+    #status-rclone, #status-timer, #status-sync, #status-vault {
+        height: 1;
+        padding: 0;
     }
     """
 
     def compose(self) -> ComposeResult:
-        # Render separately — "KOS Capture" as one string exceeds 80 cols in ansi_shadow.
-        # KOS: heavy ansi_shadow block chars. Capture: lighter shadow font below it.
+        # "KOS Capture" as single ansi_shadow string exceeds 80 cols — render separately.
         banner = (
             pyfiglet.figlet_format("KOS", font="ansi_shadow").rstrip()
             + "\n"
@@ -115,26 +183,58 @@ class HomeScreen(Screen):
                     id="tagline",
                 )
                 yield Static("─" * 40, id="separator-bottom")
-                with Vertical(id="status-panel"):
-                    yield Static("[ System Status ]", id="status-title")
-                    yield Static("", id="status-rclone")
-                    yield Static("", id="status-timer")
-                    yield Static("", id="status-sync")
-                    yield Static("", id="status-vault")
 
-        yield Footer()
+                with Center():
+                    with Vertical(id="nav-panel"):
+                        yield Static("Main Menu", id="nav-title")
+                        yield Static("─" * 22, id="nav-separator")
+                        yield ListView(
+                            *[
+                                ListItem(Label(label), id=item_id)
+                                for label, item_id in _NAV_ITEMS
+                            ],
+                            id="nav-list",
+                        )
+
+                with Center():
+                    with Vertical(id="status-panel"):
+                        yield Static("[ System Status ]", id="status-title")
+                        yield Static("", id="status-rclone")
+                        yield Static("", id="status-timer")
+                        yield Static("", id="status-sync")
+                        yield Static("", id="status-vault")
 
     def on_mount(self) -> None:
-        """Populate status on first load."""
         self._update_status()
+
+    def on_list_view_selected(self, event: ListView.Selected) -> None:
+        """Handle Enter on a nav menu item."""
+        dispatch = {
+            "nav-sync":       self.action_go_sync,
+            "nav-inbox":      self.action_go_inbox,
+            "nav-transcribe": self.action_go_transcribe,
+            "nav-config":     self.action_go_config,
+            "nav-refresh":    self.action_refresh_status,
+            "nav-quit":       self.app.exit,
+        }
+        fn = dispatch.get(event.item.id)
+        if fn:
+            fn()
+
+    def action_go_sync(self) -> None:
+        self.app.switch_screen("sync")
+
+    def action_go_inbox(self) -> None:
+        self.app.switch_screen("inbox")
+
+    def action_go_transcribe(self) -> None:
+        self.app.switch_screen("transcribe")
+
+    def action_go_config(self) -> None:
+        self.app.push_screen("setup")
 
     def action_refresh_status(self) -> None:
-        """Re-check all status values — bound to 'r'."""
         self._update_status()
-
-    def action_open_config(self) -> None:
-        """Push the setup/config screen — bound to 'c'."""
-        self.app.push_screen("setup")
 
     def _update_status(self) -> None:
         """Query core modules and update each status widget."""
@@ -147,7 +247,6 @@ class HomeScreen(Screen):
             _status_line(status.timer_active, "proton-sync.timer active")
         )
 
-        # 12-hour AM/PM format for last sync time
         if status.last_sync:
             sync_str = status.last_sync.strftime("%Y-%m-%d %I:%M %p")
             self.query_one("#status-sync", Static).update(
@@ -158,7 +257,6 @@ class HomeScreen(Screen):
                 _status_line(False, "last sync  never")
             )
 
-        # Vault — verify vault_root path exists on disk
         vault_ok = False
         if config.exists():
             try:
