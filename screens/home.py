@@ -26,7 +26,7 @@ from textual.widgets import Label, ListItem, ListView, Static
 
 def _status_line(ok: bool, label: str) -> str:
     """Format a coloured ✓/✗ status line using Rich markup."""
-    icon = "[green]✓[/green]" if ok else "[red]✗[/red]"
+    icon = "[bold #00ff00]✓[/bold #00ff00]" if ok else "[bold red]✗[/bold red]"
     return f"  {icon}  {label}"
 
 
@@ -139,11 +139,16 @@ class HomeScreen(Screen):
     #nav-list > ListItem > Label {
         width: 100%;
         text-align: center;
+        color: $text-muted;
     }
 
-    #nav-list > ListItem.--highlight {
-        background: $primary 20%;
-        color: $primary;
+    #nav-list > ListItem.-highlight {
+        background: transparent;
+    }
+
+    #nav-list > ListItem.-highlight > Label {
+        color: #00ff00;
+        text-style: bold;
     }
 
     #status-panel {
