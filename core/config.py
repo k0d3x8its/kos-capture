@@ -55,13 +55,13 @@ def validate(proton_drive: str, vault_root: str, remote_path: str) -> list[str]:
     """
     Validate all three config values before writing.
 
-    Paths must exist on disk. remote_path must be non-empty but is not
-    checked against the remote (no network call at setup time).
+    Paths are expanded (~ → home dir) before checking existence.
+    remote_path must be non-empty but is not checked against the remote.
     """
     errors = []
-    if not Path(proton_drive).exists():
+    if not Path(proton_drive).expanduser().exists():
         errors.append(f"Proton Drive path not found: {proton_drive}")
-    if not Path(vault_root).exists():
+    if not Path(vault_root).expanduser().exists():
         errors.append(f"Vault root not found: {vault_root}")
     if not remote_path.strip():
         errors.append("Remote path is required (e.g. Photos/Field-Notes).")
@@ -69,11 +69,17 @@ def validate(proton_drive: str, vault_root: str, remote_path: str) -> list[str]:
 
 
 def write(proton_drive: str, vault_root: str, remote_path: str) -> None:
-    """Persist all three config values to ~/.config/kos-capture/config.toml."""
+    """Persist all three config values to ~/.config/kos-capture/config.toml.
+
+    Paths are expanded to absolute form before storing so ~ never appears
+    in the saved file.
+    """
+    proton_abs = str(Path(proton_drive).expanduser().resolve())
+    vault_abs  = str(Path(vault_root).expanduser().resolve())
     CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)
     CONFIG_PATH.write_text(
         f'[paths]\n'
-        f'proton_drive = "{proton_drive}"\n'
-        f'vault_root   = "{vault_root}"\n'
+        f'proton_drive = "{proton_abs}"\n'
+        f'vault_root   = "{vault_abs}"\n'
         f'remote_path  = "{remote_path.strip()}"\n'
     )
