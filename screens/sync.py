@@ -174,6 +174,7 @@ class SyncScreen(Screen):
         worker = get_current_worker()
         log = self.query_one("#log", RichLog)
         exit_code = -1
+        proc = None
 
         try:
             proc = rclone.trigger_sync(proton_drive, remote_path)
@@ -186,8 +187,10 @@ class SyncScreen(Screen):
             exit_code = proc.returncode
         except Exception as exc:
             self.app.call_from_thread(log.write, f"[red]Error: {exc}[/red]")
-
-        self.app.call_from_thread(self._on_sync_complete, exit_code)
+            if proc is not None:
+                proc.terminate()
+        finally:
+            self.app.call_from_thread(self._on_sync_complete, exit_code)
 
     def _on_sync_complete(self, exit_code: int) -> None:
         """Called on the main thread after the worker finishes."""
