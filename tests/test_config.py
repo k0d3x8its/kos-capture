@@ -10,6 +10,8 @@ to point inside tmp_path so tests never touch the real config file.
 from pathlib import Path
 from unittest.mock import patch
 
+import pytest
+
 import core.config as config
 
 
@@ -102,6 +104,35 @@ def test_write_expands_tilde(tmp_path, monkeypatch):
     assert "~" not in content
     assert str(proton) in content
     assert str(vault) in content
+
+
+# --- load() error handling ---
+
+def test_load_bad_toml_raises_valueerror(tmp_path):
+    """load() raises ValueError with a readable message when TOML is malformed."""
+    cfg_path = tmp_path / "config.toml"
+    cfg_path.write_text("this is not valid toml ][")
+    with patch.object(config, "CONFIG_PATH", cfg_path):
+        with pytest.raises(ValueError, match="not valid TOML"):
+            config.load()
+
+
+def test_load_missing_paths_section_raises_valueerror(tmp_path):
+    """load() raises ValueError when the [paths] section is absent."""
+    cfg_path = tmp_path / "config.toml"
+    cfg_path.write_text("[other]\nkey = 'value'\n")
+    with patch.object(config, "CONFIG_PATH", cfg_path):
+        with pytest.raises(ValueError, match="missing required field"):
+            config.load()
+
+
+def test_load_missing_field_raises_valueerror(tmp_path):
+    """load() raises ValueError when a required key is absent from [paths]."""
+    cfg_path = tmp_path / "config.toml"
+    cfg_path.write_text('[paths]\nproton_drive = "/a"\nvault_root = "/b"\n')
+    with patch.object(config, "CONFIG_PATH", cfg_path):
+        with pytest.raises(ValueError, match="missing required field"):
+            config.load()
 
 
 # --- load() ---
