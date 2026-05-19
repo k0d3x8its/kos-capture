@@ -10,6 +10,8 @@ while a sync is in progress. Status refreshes automatically on completion.
 Escape is blocked while a sync is running to avoid orphaning the process.
 """
 
+import re
+
 import core.config as config
 import core.rclone as rclone
 from textual import work
@@ -21,8 +23,77 @@ from textual.widgets import Button, Footer, RichLog, Static
 from textual.worker import get_current_worker
 
 
+_LOG_RE        = re.compile(r'^(\d{4}/\d{2}/\d{2}) (\d{2}):(\d{2}):(\d{2}) \w+\s+:\s*(.*)')
+_ACTION_RE     = re.compile(r':\s+(Copied|Deleted|Skipped|Updated|Moved|Renamed)')
+_SPEED_RE      = re.compile(r'([\d.]+)\s*(TiB|GiB|MiB|KiB|B)/s')
+_SIZE_RE       = re.compile(r'([\d.]+)\s*(TiB|GiB|MiB|KiB|B)(?!/)')
+_CHECKS_RE     = re.compile(r'Checks:\s*(\d+)\s*/\s*(\d+)(?:,[^,]*)?(?:,\s*Listed\s+(\d+))?')
+_COUNT_XFER_RE = re.compile(r'^Transferred:\s+(\d+)\s*/\s*(\d+),\s*(\d+)%')
+
+_IEC_LABEL  = {'TiB': 'TB', 'GiB': 'GB', 'MiB': 'MB', 'KiB': 'KB', 'B': 'B'}
+_IEC_BITS   = {'TiB': 8_796_093_022_208, 'GiB': 8_589_934_592,
+               'MiB': 8_388_608, 'KiB': 8_192, 'B': 8}
+
+_PATH_COL = 31   # fixed column width for file path before arrow
+
+
+def _to_mbps(val: float, unit: str) -> str:
+    mbps = val * _IEC_BITS.get(unit, 1) / 1_000_000
+    return f"{mbps / 1000:.2f} Gbps" if mbps >= 1000 else f"{mbps:.1f} Mbps"
+
+
+def _fmt_log_line(raw: str) -> str | None:
+    line = raw.rstrip()
+
+    # Per-file entry: "2024/01/15 14:30:00 INFO  : path: Copied (new)"
+    m = _LOG_RE.match(line)
+    if m:
+        _, hh, mm, ss, rest = m.groups()
+        rest = rest.strip()
+        if not rest:
+            return None  # skip blank INFO lines
+        h = int(hh)
+        h12 = h % 12 or 12
+        ampm = "AM" if h < 12 else "PM"
+        ts = f"{h12}:{mm}:{ss} {ampm}"
+        am = _ACTION_RE.search(rest)
+        if am:
+            path   = rest[:am.start()].rstrip(": ")
+            action = am.group(1) + rest[am.end():]
+            p           = min(len(path), _PATH_COL)
+            path_padded = path[:p].ljust(_PATH_COL)
+            return f"{ts}  {path_padded}  ⟹  {action}"
+        return f"{ts}  {rest}"
+
+    # Collapse tabs/extra spaces for all summary lines
+    clean = re.sub(r'[ \t]+', ' ', line).strip()
+    if not clean:
+        return None
+
+    # Checks: N / M — files rclone compared against destination (0 = all were new)
+    m = _CHECKS_RE.search(clean)
+    if m:
+        verified, total, listed = m.group(1), m.group(2), m.group(3)
+        if verified == "0":
+            return f"Files scanned: {listed}" if listed else None
+        noun = "file" if verified == "1" else "files"
+        scanned = f"\nFiles scanned: {listed}" if listed else ""
+        return f"Already downloaded: {verified} {noun}{scanned}"
+
+    # Count-based Transferred (files, not bytes) — rename to avoid duplicate label
+    m = _COUNT_XFER_RE.match(clean)
+    if m:
+        done, total, pct = m.group(1), m.group(2), m.group(3)
+        return f"Files synced: {done} / {total} ({pct}%)"
+
+    # Convert speed then rename IEC size units for remaining lines
+    clean = _SPEED_RE.sub(lambda m: _to_mbps(float(m.group(1)), m.group(2)), clean)
+    clean = _SIZE_RE.sub(lambda m: f"{float(m.group(1)):.1f} {_IEC_LABEL[m.group(2)]}", clean)
+    return clean
+
+
 def _status_line(ok: bool, label: str) -> str:
-    icon = "[green]✓[/green]" if ok else "[red]✗[/red]"
+    icon = "[bold #00ff00]✓[/bold #00ff00]" if ok else "[bold red]✗[/bold red]"
     return f"  {icon}  {label}"
 
 
@@ -35,7 +106,8 @@ class SyncScreen(Screen):
 
     DEFAULT_CSS = """
     SyncScreen {
-        align: center middle;
+        align: center top;
+        padding: 1 0;
     }
 
     #panel {
@@ -59,13 +131,20 @@ class SyncScreen(Screen):
     }
 
     #status-rclone, #status-timer, #status-sync {
-        height: 1;
+        height: auto;
         padding: 0;
     }
 
     #trigger-btn {
         width: 100%;
         margin-bottom: 1;
+        background: #00ff00;
+        color: #000000;
+    }
+
+    #trigger-btn:hover {
+        background: #33ff33;
+        color: #000000;
     }
 
     #sync-state {
@@ -76,7 +155,7 @@ class SyncScreen(Screen):
     }
 
     #log {
-        height: 14;
+        height: 12;
         border: round $panel;
         padding: 0 1;
     }
@@ -103,6 +182,7 @@ class SyncScreen(Screen):
 
     def on_mount(self) -> None:
         self._refresh_status()
+        self.query_one("#log", RichLog).focus()
 
     # ── Bindings ───────────────────────────────────────────────────────────
 
@@ -135,7 +215,10 @@ class SyncScreen(Screen):
             _status_line(s.timer_active, "proton-sync.timer active")
         )
         if s.last_sync:
-            ts = s.last_sync.strftime("%Y-%m-%d %I:%M %p")
+            _dt = s.last_sync
+            _h  = _dt.hour
+            ts  = (f"{_dt.year}-{_dt.month:02d}-{_dt.day:02d} "
+                   f"{_h % 12 or 12}:{_dt.minute:02d} {'AM' if _h < 12 else 'PM'}")
             self.query_one("#status-sync", Static).update(
                 _status_line(True, f"last sync  {ts}")
             )
@@ -182,7 +265,9 @@ class SyncScreen(Screen):
                 if worker.is_cancelled:
                     proc.terminate()
                     break
-                self.app.call_from_thread(log.write, line.rstrip())
+                formatted = _fmt_log_line(line)
+                if formatted is not None:
+                    self.app.call_from_thread(log.write, formatted)
             proc.wait()
             exit_code = proc.returncode
         except Exception as exc:
