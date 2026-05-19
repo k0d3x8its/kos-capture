@@ -191,6 +191,21 @@ async def test_i_key_navigates_to_inbox():
             assert pilot.app.screen.query_one("#file-list") is not None
 
 
+async def test_refresh_with_bad_config_shows_modal():
+    """Pressing 'r' when config is malformed pushes the ErrorModal."""
+    status = _make_status()
+    with patch("app.config.exists", return_value=False), \
+         patch("screens.home.rclone.status", return_value=status), \
+         patch("screens.home.config.exists", return_value=True), \
+         patch("screens.home.config.load", side_effect=ValueError("Config file is not valid TOML: bad")):
+        async with KosCaptureApp().run_test() as pilot:
+            await pilot.pause()
+            await _open_home(pilot)
+            await pilot.press("r")
+            await pilot.pause()
+            assert pilot.app.screen.__class__.__name__ == "ErrorModal"
+
+
 async def test_t_key_navigates_to_transcribe():
     """Pressing 't' switches to the Transcribe screen."""
     status = _make_status()
