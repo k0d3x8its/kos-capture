@@ -41,14 +41,19 @@ def exists() -> bool:
 
 
 def load() -> Config:
-    with CONFIG_PATH.open("rb") as f:
-        data = tomllib.load(f)
-    paths = data["paths"]
-    return Config(
-        proton_drive=Path(paths["proton_drive"]),
-        vault_root=Path(paths["vault_root"]),
-        remote_path=paths["remote_path"],
-    )
+    try:
+        with CONFIG_PATH.open("rb") as f:
+            data = tomllib.load(f)
+        paths = data["paths"]
+        return Config(
+            proton_drive=Path(paths["proton_drive"]),
+            vault_root=Path(paths["vault_root"]),
+            remote_path=paths["remote_path"],
+        )
+    except tomllib.TOMLDecodeError as exc:
+        raise ValueError(f"Config file is not valid TOML: {exc}") from exc
+    except KeyError as exc:
+        raise ValueError(f"Config file is missing required field: {exc}") from exc
 
 
 def validate(proton_drive: str, vault_root: str, remote_path: str) -> list[str]:
