@@ -113,3 +113,69 @@ def test_run_meetings_creates_transcript_dir(tmp_path):
         transcribe.run("meetings", audio, transcript_dir, "title")
 
     assert transcript_dir.exists()
+
+
+# --- run() — youtube path ---
+
+def test_run_youtube_writes_md(tmp_path):
+    """run() for youtube downloads audio and writes a dated .md file."""
+    transcript_dir = tmp_path / "raw" / "transcripts" / "youtube"
+    fake_wav = tmp_path / "video.wav"
+    fake_wav.write_bytes(b"fake")
+
+    mock_segment = MagicMock()
+    mock_segment.start = 0.0
+    mock_segment.text = " YouTube segment "
+    mock_model = MagicMock()
+    mock_model.transcribe.return_value = ([mock_segment], MagicMock())
+
+    with patch("core.transcribe._download_audio", return_value=(fake_wav, "my video")), \
+         patch("core.transcribe.WhisperModel", return_value=mock_model):
+        out = transcribe.run("youtube", "https://example.com", transcript_dir, "my video")
+
+    assert out.exists()
+    assert "my-video" in out.name
+    content = out.read_text()
+    assert "# my video" in content
+    assert "[00:00] YouTube segment" in content
+
+
+def test_run_youtube_creates_transcript_dir(tmp_path):
+    """run() for youtube creates the transcript directory if it doesn't exist."""
+    transcript_dir = tmp_path / "raw" / "transcripts" / "youtube"
+    fake_wav = tmp_path / "video.wav"
+    fake_wav.write_bytes(b"fake")
+
+    mock_model = MagicMock()
+    mock_model.transcribe.return_value = ([], MagicMock())
+
+    with patch("core.transcribe._download_audio", return_value=(fake_wav, "title")), \
+         patch("core.transcribe.WhisperModel", return_value=mock_model):
+        transcribe.run("youtube", "https://example.com", transcript_dir, "title")
+
+    assert transcript_dir.exists()
+
+
+# --- run() — podcasts path ---
+
+def test_run_podcasts_writes_md(tmp_path):
+    """run() for podcasts follows the same download+transcribe path as youtube."""
+    transcript_dir = tmp_path / "raw" / "transcripts" / "podcasts"
+    fake_wav = tmp_path / "episode.wav"
+    fake_wav.write_bytes(b"fake")
+
+    mock_segment = MagicMock()
+    mock_segment.start = 60.0
+    mock_segment.text = " Podcast segment "
+    mock_model = MagicMock()
+    mock_model.transcribe.return_value = ([mock_segment], MagicMock())
+
+    with patch("core.transcribe._download_audio", return_value=(fake_wav, "my podcast")), \
+         patch("core.transcribe.WhisperModel", return_value=mock_model):
+        out = transcribe.run("podcasts", "https://example.com/feed.rss", transcript_dir, "my podcast")
+
+    assert out.exists()
+    assert "my-podcast" in out.name
+    content = out.read_text()
+    assert "# my podcast" in content
+    assert "[01:00] Podcast segment" in content
