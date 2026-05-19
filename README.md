@@ -11,7 +11,9 @@ Part of [Kodex OS](https://github.com/k0d3x8its/kodex-os) — a layered personal
 
 ---
 
-![KOS Capture main menu](assets/kos-capture-menu.png)
+<p align="center">
+  <img alt="KOS Capture main menu" src="assets/kos-capture-menu.png">
+</p>
 
 ---
 
