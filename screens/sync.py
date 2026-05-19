@@ -166,17 +166,17 @@ class SyncScreen(Screen):
         self.query_one("#trigger-btn", Button).disabled = True
         self.query_one("#sync-state", Static).update("[yellow]⟳  Syncing…[/yellow]")
         self.query_one("#log", RichLog).clear()
-        self._run_sync(str(cfg.proton_drive))
+        self._run_sync(str(cfg.proton_drive), cfg.remote_path)
 
     @work(thread=True)
-    def _run_sync(self, proton_drive: str) -> None:
+    def _run_sync(self, proton_drive: str, remote_path: str) -> None:
         """Background thread: stream rclone output line-by-line into the log."""
         worker = get_current_worker()
         log = self.query_one("#log", RichLog)
         exit_code = -1
 
         try:
-            proc = rclone.trigger_sync(proton_drive)
+            proc = rclone.trigger_sync(proton_drive, remote_path)
             for line in proc.stdout:
                 if worker.is_cancelled:
                     proc.terminate()
