@@ -93,10 +93,24 @@ def last_sync_time() -> datetime | None:
         if line.startswith("LastTriggerUSec="):
             value = line.split("=", 1)[1].strip()
             if value and value != "0":
+                # Try with timezone suffix (works when tz is UTC/GMT)
                 try:
                     return datetime.strptime(value, "%a %Y-%m-%d %H:%M:%S %Z")
                 except ValueError:
-                    return None
+                    pass
+                # Strip timezone word and retry (handles CDT, EDT, PST, etc.)
+                try:
+                    return datetime.strptime(value.rsplit(" ", 1)[0], "%a %Y-%m-%d %H:%M:%S")
+                except ValueError:
+                    pass
+                # Raw microseconds since epoch (some systemd configs)
+                try:
+                    usec = int(value)
+                    if usec > 0:
+                        return datetime.fromtimestamp(usec / 1_000_000)
+                except (ValueError, OSError):
+                    pass
+                return None
     return None
 
 
