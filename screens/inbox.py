@@ -193,3 +193,5 @@ class InboxScreen(Screen):
 
         for pdf in self._pdfs:
             file_list.append(ListItem(Label(_item_label(pdf))))
+
+        file_list.index = 0
