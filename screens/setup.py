@@ -10,7 +10,7 @@ Collects three values from the user:
     - Proton Drive local path: where rclone syncs Field Notes PDFs
     - KOS vault root:          root of the KOS vault (raw/, wiki/, etc.)
     - Remote path:             subfolder on the Proton Drive remote to sync
-                               (e.g. Photos/Field-Notes)
+                               (e.g. Photos/field-scans)
 
 Local paths are validated on disk before writing. Remote path is checked
 for non-empty only — no network call at setup time.
@@ -102,9 +102,9 @@ class SetupScreen(Screen):
             )
 
             yield Label("Remote path on Proton Drive", classes="field-label")
-            yield Static("Subfolder to sync, e.g.  Photos/Field-Notes", classes="field-hint")
+            yield Static("Subfolder to sync, e.g.  Photos/field-scans", classes="field-hint")
             yield Input(
-                placeholder="Photos/Field-Notes",
+                placeholder="Photos/field-scans",
                 id="remote-path",
             )
 
