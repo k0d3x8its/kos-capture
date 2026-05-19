@@ -115,7 +115,7 @@ def status() -> RcloneStatus:
     )
 
 
-def trigger_sync(proton_drive: Path, remote: str = "protondrive:") -> subprocess.Popen:
+def trigger_sync(proton_drive: Path, remote: str = "proton:") -> subprocess.Popen:
     """
     Start a manual rclone sync and return the running process.
 
@@ -127,9 +127,8 @@ def trigger_sync(proton_drive: Path, remote: str = "protondrive:") -> subprocess
     stderr is merged into stdout (STDOUT) so progress messages and errors
     appear in the same stream.
 
-    The `remote` argument defaults to 'protondrive:' — the standard rclone
-    remote name for Proton Drive. Override if the user configured a different
-    remote name (future config option).
+    The `remote` argument defaults to 'proton:' — the rclone remote name
+    configured on this system. Override if using a different remote name.
     """
     return subprocess.Popen(
         ["rclone", "sync", remote, str(proton_drive), "--progress"],
