@@ -5,12 +5,14 @@ Integration tests for screens/home.py using Textual's Pilot harness.
 
 Strategy: always start on setup (config.exists=False), then explicitly
 push "home" — avoids race between on_mount routing and the pilot harness.
+
+Navigation menu tests verify both letter-key shortcuts and arrow+Enter paths.
 """
 
 from datetime import datetime
 from unittest.mock import patch
 
-from textual.widgets import Static
+from textual.widgets import ListView, Static
 
 from app import KosCaptureApp
 from core.rclone import RcloneStatus
@@ -110,3 +112,50 @@ async def test_c_key_pushes_setup_screen():
             await pilot.press("c")
             await pilot.pause()
             assert pilot.app.screen.query_one("#save-btn") is not None
+
+
+async def test_nav_menu_present():
+    """Navigation ListView and all six items are in the DOM."""
+    status = _make_status()
+    with patch("app.config.exists", return_value=False), \
+         patch("screens.home.rclone.status", return_value=status), \
+         patch("screens.home.config.exists", return_value=False):
+        async with KosCaptureApp().run_test() as pilot:
+            await pilot.pause()
+            await _open_home(pilot)
+            lv = pilot.app.screen.query_one("#nav-list", ListView)
+            assert lv is not None
+            assert len(lv.children) == 6
+
+
+async def test_enter_on_config_item_pushes_setup():
+    """Arrow-down to Config item then Enter navigates to setup screen."""
+    status = _make_status()
+    with patch("app.config.exists", return_value=False), \
+         patch("screens.home.rclone.status", return_value=status), \
+         patch("screens.home.config.exists", return_value=False):
+        async with KosCaptureApp().run_test() as pilot:
+            await pilot.pause()
+            await _open_home(pilot)
+            # ListView starts on index 0 (Sync); move down 3 times to reach Config (index 3)
+            await pilot.press("down", "down", "down")
+            await pilot.press("enter")
+            await pilot.pause()
+            assert pilot.app.screen.query_one("#save-btn") is not None
+
+
+async def test_enter_on_refresh_item_calls_status():
+    """Arrow-down to Refresh item then Enter calls rclone.status() again."""
+    status = _make_status()
+    with patch("app.config.exists", return_value=False), \
+         patch("screens.home.rclone.status", return_value=status) as mock_status, \
+         patch("screens.home.config.exists", return_value=False):
+        async with KosCaptureApp().run_test() as pilot:
+            await pilot.pause()
+            await _open_home(pilot)
+            calls_after_mount = mock_status.call_count
+            # Move down 4 times to reach Refresh (index 4)
+            await pilot.press("down", "down", "down", "down")
+            await pilot.press("enter")
+            await pilot.pause()
+            assert mock_status.call_count == calls_after_mount + 1
