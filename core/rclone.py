@@ -115,23 +115,23 @@ def status() -> RcloneStatus:
     )
 
 
-def trigger_sync(proton_drive: Path, remote: str = "proton:") -> subprocess.Popen:
+def trigger_sync(
+    proton_drive: Path,
+    remote_path: str,
+    remote: str = "proton:",
+) -> subprocess.Popen:
     """
-    Start a manual rclone sync and return the running process.
+    Start a scoped rclone sync and return the running process.
 
-    Returns a Popen object rather than waiting for completion so the Sync
-    screen can stream stdout line-by-line and display live progress without
-    blocking the Textual event loop. The caller is responsible for reading
-    proc.stdout and calling proc.wait() when done.
+    Syncs remote_path on the configured remote to the local proton_drive
+    directory — e.g. proton:Photos/Field-Notes → /local/path.
 
-    stderr is merged into stdout (STDOUT) so progress messages and errors
-    appear in the same stream.
-
-    The `remote` argument defaults to 'proton:' — the rclone remote name
-    configured on this system. Override if using a different remote name.
+    stderr is merged into stdout so progress and errors appear in one stream.
+    The caller reads proc.stdout line-by-line and calls proc.wait() when done.
     """
+    source = f"{remote}{remote_path.strip('/')}"
     return subprocess.Popen(
-        ["rclone", "sync", remote, str(proton_drive), "--progress"],
+        ["rclone", "sync", source, str(proton_drive), "--progress"],
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
         text=True,
