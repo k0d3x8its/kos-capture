@@ -70,6 +70,14 @@ def test_last_sync_time_empty_returns_none():
         assert rclone.last_sync_time() is None
 
 
+def test_last_sync_time_malformed_returns_none():
+    """last_sync_time() returns None when the timestamp cannot be parsed (ValueError branch)."""
+    result = MagicMock()
+    result.stdout = "LastTriggerUSec=not a valid date\n"
+    with patch("subprocess.run", return_value=result):
+        assert rclone.last_sync_time() is None
+
+
 def test_last_sync_time_parses_valid():
     """last_sync_time() parses a valid systemd timestamp into a datetime."""
     result = MagicMock()
