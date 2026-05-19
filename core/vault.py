@@ -56,7 +56,10 @@ def volumes(vault_root: Path, collection: str) -> list[str]:
     collection_path = raw_root(vault_root) / collection
     if not collection_path.exists():
         return []
-    return sorted(d.name for d in collection_path.iterdir() if d.is_dir())
+    try:
+        return sorted(d.name for d in collection_path.iterdir() if d.is_dir())
+    except PermissionError:
+        return []
 
 
 def create_volume(vault_root: Path, collection: str, volume: str) -> Path:
