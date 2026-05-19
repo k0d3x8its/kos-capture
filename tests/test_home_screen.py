@@ -159,3 +159,47 @@ async def test_enter_on_refresh_item_calls_status():
             await pilot.press("enter")
             await pilot.pause()
             assert mock_status.call_count == calls_after_mount + 1
+
+
+async def test_s_key_navigates_to_sync():
+    """Pressing 's' switches to the Sync screen."""
+    status = _make_status()
+    with patch("app.config.exists", return_value=False), \
+         patch("screens.home.rclone.status", return_value=status), \
+         patch("screens.home.config.exists", return_value=False), \
+         patch("screens.sync.rclone.status", return_value=status):
+        async with KosCaptureApp().run_test() as pilot:
+            await pilot.pause()
+            await _open_home(pilot)
+            await pilot.press("s")
+            await pilot.pause()
+            assert pilot.app.screen.query_one("#trigger-btn") is not None
+
+
+async def test_i_key_navigates_to_inbox():
+    """Pressing 'i' switches to the Inbox screen."""
+    status = _make_status()
+    with patch("app.config.exists", return_value=False), \
+         patch("screens.home.rclone.status", return_value=status), \
+         patch("screens.home.config.exists", return_value=False), \
+         patch("screens.inbox.config.exists", return_value=False):
+        async with KosCaptureApp().run_test() as pilot:
+            await pilot.pause()
+            await _open_home(pilot)
+            await pilot.press("i")
+            await pilot.pause()
+            assert pilot.app.screen.query_one("#file-list") is not None
+
+
+async def test_t_key_navigates_to_transcribe():
+    """Pressing 't' switches to the Transcribe screen."""
+    status = _make_status()
+    with patch("app.config.exists", return_value=False), \
+         patch("screens.home.rclone.status", return_value=status), \
+         patch("screens.home.config.exists", return_value=False):
+        async with KosCaptureApp().run_test() as pilot:
+            await pilot.pause()
+            await _open_home(pilot)
+            await pilot.press("t")
+            await pilot.pause()
+            assert pilot.app.screen.__class__.__name__ == "TranscribeScreen"
