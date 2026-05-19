@@ -11,6 +11,10 @@ Part of [Kodex OS](https://github.com/k0d3x8its/kodex-os) — a layered personal
 
 ---
 
+![KOS Capture main menu](assets/kos-capture-menu.png)
+
+---
+
 ## What It Does
 
 Getting raw material into a [KOS](https://github.com/k0d3x8its/kos) vault normally means multiple terminal touchpoints: checking rclone sync, renaming PDFs with the right suffix, routing files to the correct collection and volume, and running `/kos-ingest` in your agent. KOS Capture wraps all of that into one keyboard-driven TUI — no raw terminal required.
