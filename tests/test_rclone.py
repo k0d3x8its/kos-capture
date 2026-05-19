@@ -106,7 +106,7 @@ def test_trigger_sync_builds_correct_command(tmp_path):
         rclone.trigger_sync(tmp_path, "Photos/Field-Notes")
         args = mock_popen.call_args[0][0]
         assert args[0] == "rclone"
-        assert args[1] == "sync"
+        assert args[1] == "copy"
         assert args[2] == "proton:Photos/Field-Notes"
         assert args[3] == str(tmp_path)
 
