@@ -47,6 +47,27 @@ async def test_invalid_paths_show_not_found_error():
             assert "not found" in errors.lower()
 
 
+async def test_existing_config_prefills_inputs(tmp_path):
+    """Opening Setup when config exists pre-fills all three input fields."""
+    from unittest.mock import MagicMock
+    import core.config as config_module
+
+    mock_cfg = MagicMock()
+    mock_cfg.proton_drive = tmp_path / "proton"
+    mock_cfg.vault_root = tmp_path / "vault"
+    mock_cfg.remote_path = "Photos/Field-Notes"
+
+    with patch("app.config.exists", return_value=True), \
+         patch("screens.setup.config.exists", return_value=True), \
+         patch("screens.setup.config.load", return_value=mock_cfg):
+        async with KosCaptureApp().run_test() as pilot:
+            await pilot.app.push_screen("setup")
+            await pilot.pause()
+            assert pilot.app.screen.query_one("#proton-drive", Input).value == str(mock_cfg.proton_drive)
+            assert pilot.app.screen.query_one("#vault-root", Input).value == str(mock_cfg.vault_root)
+            assert pilot.app.screen.query_one("#remote-path", Input).value == "Photos/Field-Notes"
+
+
 async def test_valid_paths_call_config_write(tmp_path):
     """Submitting valid inputs calls config.write() with all three arguments."""
     proton = tmp_path / "proton"; proton.mkdir()
