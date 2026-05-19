@@ -109,6 +109,16 @@ class SetupScreen(Screen):
             yield Static("", id="errors")
             yield Button("Save", id="save-btn", variant="primary")
 
+    def on_mount(self) -> None:
+        if config.exists():
+            try:
+                cfg = config.load()
+                self.query_one("#proton-drive", Input).value = str(cfg.proton_drive)
+                self.query_one("#vault-root", Input).value = str(cfg.vault_root)
+                self.query_one("#remote-path", Input).value = cfg.remote_path
+            except Exception:
+                pass
+
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "save-btn":
             self._save()
