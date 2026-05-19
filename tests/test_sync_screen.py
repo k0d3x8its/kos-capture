@@ -167,3 +167,26 @@ async def test_escape_navigates_when_idle():
             await pilot.press("escape")
             await pilot.pause()
             assert pilot.app.screen.__class__.__name__ == "HomeScreen"
+
+
+async def test_trigger_sync_exception_re_enables_button():
+    """If trigger_sync raises, the finally block still re-enables the button."""
+    status = _make_status()
+    mock_cfg = MagicMock()
+    mock_cfg.proton_drive = "/mock/path"
+    mock_cfg.remote_path = "Photos/Field-Notes"
+
+    with patch("app.config.exists", return_value=False), \
+         patch("screens.sync.rclone.status", return_value=status), \
+         patch("screens.sync.config.exists", return_value=True), \
+         patch("screens.sync.config.load", return_value=mock_cfg), \
+         patch("screens.sync.rclone.trigger_sync", side_effect=OSError("mock failure")):
+        async with KosCaptureApp().run_test() as pilot:
+            await pilot.pause()
+            await _open_sync(pilot)
+            pilot.app.screen.query_one("#trigger-btn", Button).press()
+            await pilot.pause()
+            await pilot.pause()
+            btn = pilot.app.screen.query_one("#trigger-btn", Button)
+            assert not btn.disabled
+            assert pilot.app.screen._sync_running is False
