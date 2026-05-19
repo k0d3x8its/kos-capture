@@ -116,8 +116,11 @@ class SetupScreen(Screen):
                 self.query_one("#proton-drive", Input).value = str(cfg.proton_drive)
                 self.query_one("#vault-root", Input).value = str(cfg.vault_root)
                 self.query_one("#remote-path", Input).value = cfg.remote_path
-            except Exception:
-                pass
+            except Exception as exc:
+                self.query_one("#errors", Static).update(
+                    f"[yellow]Existing config could not be loaded: {exc}[/yellow]\n"
+                    "Fill in all three fields to restore your configuration."
+                )
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "save-btn":
