@@ -16,6 +16,7 @@ import pyfiglet
 
 import core.config as config
 import core.rclone as rclone
+from screens.modal import ErrorModal
 from textual.app import ComposeResult
 from textual.binding import Binding
 from textual.containers import Center, Vertical
@@ -234,9 +235,9 @@ class HomeScreen(Screen):
         self.app.push_screen("setup")
 
     def action_refresh_status(self) -> None:
-        self._update_status()
+        self._update_status(show_errors=True)
 
-    def _update_status(self) -> None:
+    def _update_status(self, show_errors: bool = False) -> None:
         """Query core modules and update each status widget."""
         status = rclone.status()
 
@@ -258,13 +259,24 @@ class HomeScreen(Screen):
             )
 
         vault_ok = False
+        config_error: str | None = None
         if config.exists():
             try:
                 cfg = config.load()
                 vault_ok = cfg.vault_root.exists()
-            except Exception:
-                pass
+            except Exception as exc:
+                config_error = str(exc)
 
         self.query_one("#status-vault", Static).update(
             _status_line(vault_ok, "KOS vault detected")
         )
+
+        if show_errors and config_error:
+            self.app.push_screen(
+                ErrorModal(f"{config_error}\n\nOpen Setup to fix your configuration."),
+                self._on_error_modal_dismiss,
+            )
+
+    def _on_error_modal_dismiss(self, result: str | None) -> None:
+        if result == "setup":
+            self.app.push_screen("setup")
