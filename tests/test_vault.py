@@ -8,8 +8,8 @@ to the real KOS vault during testing. The raw/ subdirectory structure is
 created manually inside tmp_path to simulate different vault states.
 """
 
-import pytest
 from pathlib import Path
+from unittest.mock import patch
 
 import core.vault as vault
 
@@ -33,6 +33,14 @@ def test_volumes_detected(tmp_path):
     (coll / "FL-vol-001").mkdir(parents=True)
     # Result must be sorted ascending — wizard displays them in order
     assert vault.volumes(tmp_path, "Field-Logs") == ["FL-vol-001", "FL-vol-002"]
+
+
+def test_volumes_permission_error_returns_empty(tmp_path):
+    """volumes() returns empty list when the collection directory is not readable."""
+    coll = tmp_path / "raw" / "Field-Logs"
+    coll.mkdir(parents=True)
+    with patch.object(Path, "iterdir", side_effect=PermissionError("access denied")):
+        assert vault.volumes(tmp_path, "Field-Logs") == []
 
 
 def test_volumes_ignores_files(tmp_path):
