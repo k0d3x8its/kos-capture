@@ -14,7 +14,7 @@ import pytest
 from textual.widgets import ListView, Static
 
 from app import KosCaptureApp
-from screens.inbox import _format_size, _scan_pdfs
+from screens.inbox import _format_size, _item_label, _scan_pdfs
 
 
 # ── Pure helpers ───────────────────────────────────────────────────────────
@@ -53,6 +53,17 @@ def test_scan_pdfs_newest_first(tmp_path):
 
 def test_scan_pdfs_missing_folder():
     assert _scan_pdfs(Path("/nonexistent/path")) == []
+
+
+def test_item_label_contains_filename_size_date(tmp_path):
+    """_item_label() includes the filename, a size unit, and today's date."""
+    from datetime import datetime
+    pdf = tmp_path / "my-note.pdf"
+    pdf.write_bytes(b"%PDF" * 256)  # 1024 bytes = 1.0 KB
+    label = _item_label(pdf)
+    assert "my-note.pdf" in label
+    assert "KB" in label or "B" in label
+    assert datetime.today().strftime("%Y-%m-%d") in label
 
 
 # ── Screen integration ─────────────────────────────────────────────────────
@@ -155,3 +166,21 @@ async def test_inbox_escape_returns_home(tmp_path):
             await pilot.press("escape")
             await pilot.pause()
             assert pilot.app.screen.__class__.__name__ == "HomeScreen"
+
+
+async def test_enter_on_file_pushes_wizard(tmp_path):
+    """Selecting a PDF with Enter pushes WizardScreen with the file path."""
+    proton = tmp_path / "proton"; proton.mkdir()
+    (proton / "note.pdf").write_bytes(b"%PDF")
+
+    mock_cfg = MagicMock()
+    mock_cfg.proton_drive = proton
+
+    with patch("app.config.exists", return_value=True), \
+         patch("screens.inbox.config.exists", return_value=True), \
+         patch("screens.inbox.config.load", return_value=mock_cfg):
+        async with KosCaptureApp().run_test() as pilot:
+            await _open_inbox(pilot)
+            await pilot.press("enter")
+            await pilot.pause()
+            assert pilot.app.screen.__class__.__name__ == "WizardScreen"
