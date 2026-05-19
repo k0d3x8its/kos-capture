@@ -97,7 +97,7 @@ class SyncScreen(Screen):
 
             yield Button("Trigger Sync", id="trigger-btn", variant="primary")
             yield Static("", id="sync-state")
-            yield RichLog(id="log", highlight=True, markup=True)
+            yield RichLog(id="log", highlight=True, markup=True, wrap=True)
 
         yield Footer()
 
@@ -196,7 +196,7 @@ class SyncScreen(Screen):
 
         if exit_code == 0:
             self.query_one("#sync-state", Static).update(
-                "[green]✓  Sync complete.[/green]"
+                "[#00ff41]✓  Sync complete.[/#00ff41]"
             )
         else:
             self.query_one("#sync-state", Static).update(

@@ -131,7 +131,7 @@ def trigger_sync(
     """
     source = f"{remote}{remote_path.strip('/')}"
     return subprocess.Popen(
-        ["rclone", "sync", source, str(proton_drive), "--progress"],
+        ["rclone", "sync", source, str(proton_drive), "--verbose"],
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
         text=True,
