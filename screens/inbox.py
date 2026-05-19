@@ -53,7 +53,7 @@ class InboxScreen(Screen):
 
     BINDINGS = [
         Binding("escape", "go_back", "Back"),
-        Binding("r", "refresh", "Refresh", show=False),
+        Binding("r", "refresh", "Refresh"),
     ]
 
     DEFAULT_CSS = """
@@ -76,15 +76,16 @@ class InboxScreen(Screen):
     }
 
     #scan-path {
+        border: solid $primary;
         color: $text-muted;
-        height: 1;
-        padding: 0;
+        height: auto;
+        padding: 0 1;
         margin-bottom: 1;
     }
 
     #message {
         text-align: center;
-        height: 1;
+        height: auto;
         padding: 0;
         margin-bottom: 1;
     }
@@ -104,21 +105,20 @@ class InboxScreen(Screen):
         padding: 0;
     }
 
-    #file-list > ListItem.--highlight {
-        background: $primary 20%;
-        color: $primary;
-    }
-
     #file-list > ListItem > Label {
         width: 100%;
+        color: $text-muted;
     }
 
-    #hint {
-        text-align: center;
-        color: $text-muted;
-        height: 1;
-        padding: 0;
+    #file-list > ListItem.-highlight {
+        background: transparent;
     }
+
+    #file-list > ListItem.-highlight > Label {
+        color: #00ff00;
+        text-style: bold;
+    }
+
     """
 
     def __init__(self) -> None:
@@ -131,10 +131,12 @@ class InboxScreen(Screen):
             yield Static("", id="scan-path")
             yield Static("", id="message")
             yield ListView(id="file-list")
-            yield Static("Enter to process  ·  [r] refresh  ·  [Esc] back", id="hint")
         yield Footer()
 
     def on_mount(self) -> None:
+        self._load()
+
+    def on_show(self) -> None:
         self._load()
 
     # ── Bindings ───────────────────────────────────────────────────────────
@@ -174,7 +176,7 @@ class InboxScreen(Screen):
 
         folder = cfg.proton_drive
         self.query_one("#scan-path", Static).update(
-            f"  Scanning: [dim]{folder}[/dim]"
+            f"[bold #39ff14]Scanning:[/bold #39ff14] [dim]{folder}[/dim]"
         )
 
         self._pdfs = _scan_pdfs(folder)
@@ -187,11 +189,18 @@ class InboxScreen(Screen):
             )
             return
 
+        count = len(self._pdfs)
+        noun = "PDFs" if count != 1 else "PDF"
         self.query_one("#message", Static).update(
-            f"[green]{len(self._pdfs)} PDF{'s' if len(self._pdfs) != 1 else ''} ready to process[/green]"
+            f"[black on #00ff41]  {count} {noun} ready to process  [/black on #00ff41]"
         )
 
         for pdf in self._pdfs:
             file_list.append(ListItem(Label(_item_label(pdf))))
 
-        file_list.index = 0
+        def _init_cursor() -> None:
+            file_list.index = None
+            file_list.index = 0
+            file_list.focus()
+
+        self.set_timer(0.1, _init_cursor)
