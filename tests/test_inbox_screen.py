@@ -168,6 +168,30 @@ async def test_inbox_escape_returns_home(tmp_path):
             assert pilot.app.screen.__class__.__name__ == "HomeScreen"
 
 
+async def test_on_show_rescans_when_returning(tmp_path):
+    """on_show re-scans so a file moved while on WizardScreen disappears on return."""
+    proton = tmp_path / "proton"; proton.mkdir()
+    pdf = proton / "note.pdf"; pdf.write_bytes(b"%PDF")
+
+    mock_cfg = MagicMock()
+    mock_cfg.proton_drive = proton
+
+    with patch("app.config.exists", return_value=True), \
+         patch("screens.inbox.config.exists", return_value=True), \
+         patch("screens.inbox.config.load", return_value=mock_cfg):
+        async with KosCaptureApp().run_test() as pilot:
+            await _open_inbox(pilot)
+            items = pilot.app.screen.query_one("#file-list", ListView)
+            assert len(list(items.children)) == 1
+            # Simulate file being moved while on WizardScreen
+            pdf.unlink()
+            # on_show fires when inbox becomes active again — call it directly
+            pilot.app.screen.on_show()
+            await pilot.pause()
+            items = pilot.app.screen.query_one("#file-list", ListView)
+            assert len(list(items.children)) == 0
+
+
 async def test_enter_on_file_pushes_wizard(tmp_path):
     """Selecting a PDF with Enter pushes WizardScreen with the file path."""
     proton = tmp_path / "proton"; proton.mkdir()
