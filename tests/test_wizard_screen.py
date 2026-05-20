@@ -104,6 +104,39 @@ async def test_suffix_sticky_stores_correct_value(tmp_path):
             assert pilot.app.screen._suffix == "-sticky"
 
 
+async def test_suffix_under_stores_correct_value(tmp_path):
+    """Selecting '-under' stores '-under' as the suffix."""
+    pdf = tmp_path / "scan.pdf"; pdf.touch()
+    vault = tmp_path / "vault"
+
+    with patch("app.config.exists", return_value=False):
+        async with KosCaptureApp().run_test() as pilot:
+            await pilot.pause()
+            await _open_wizard(pilot, pdf, vault)
+            await pilot.press("down")   # index 1
+            await pilot.press("down")   # index 2 = -under
+            await pilot.press("enter")
+            await pilot.pause()
+            assert pilot.app.screen._suffix == "-under"
+
+
+async def test_suffix_flip_stores_correct_value(tmp_path):
+    """Selecting '-flip' stores '-flip' as the suffix."""
+    pdf = tmp_path / "scan.pdf"; pdf.touch()
+    vault = tmp_path / "vault"
+
+    with patch("app.config.exists", return_value=False):
+        async with KosCaptureApp().run_test() as pilot:
+            await pilot.pause()
+            await _open_wizard(pilot, pdf, vault)
+            await pilot.press("down")   # index 1
+            await pilot.press("down")   # index 2
+            await pilot.press("down")   # index 3 = -flip
+            await pilot.press("enter")
+            await pilot.pause()
+            assert pilot.app.screen._suffix == "-flip"
+
+
 # ── Step 2: collection ───────────────────────────────────────────────────────
 
 async def test_collection_selection_advances_to_volume(tmp_path):
