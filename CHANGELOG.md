@@ -1,5 +1,17 @@
 # Changelog
 
+## v0.8.0 (2026-05-19)
+
+- **🐞🛠️:** `screens/inbox.py` — session notice disappeared on refresh: `_load()` had early-return paths inside `_scan_and_display()` that skipped the notice update entirely. Fixed by splitting `_load()` into sequential `_scan_and_display()` + `_update_notice()` calls so the notice always re-renders regardless of config or folder state
+- **⬆️:** `screens/inbox.py` — `on_key` v handler added alongside the existing priority binding as belt-and-suspenders; Textual's binding dispatch can lose priority bindings when focus is inside a deeply nested widget — `on_key` with `event.stop()` guarantees the key is captured
+- **🐞🛠️:** `screens/ready.py` — `session_results` cleared silently on Done: `_populate_log()` called `done-btn.focus()` at the end; user pressing Enter on `RichLog` (unfocused, no-op) then Tab cycled focus to Done, and Enter fired Done which called `_finish()` and wiped the session. Fixed by removing `done-btn.focus()` and eliminating `_finish()` — Done now calls `switch_screen("home")` with no side effects
+- **🐞🛠️:** `screens/ready.py` — ReadyScreen showed stale log on re-entry: Textual caches screen instances after first push; `on_mount` only fires once. Fixed by adding `on_show` that calls `_populate_log()` each time the screen becomes active
+- **⬆️:** `screens/ready.py` — `session_results` persists for the full app run; clearing only happens on app restart via `app.on_mount`. "Done" is now a non-destructive navigation — "View Summary" remains reachable from Inbox throughout the session even after hitting Done
+- **⬆️:** `screens/wizard.py` — layout aligned `center top` with `padding: 1 0` to match ReadyScreen; `ContentSwitcher` given `max-height: 12`; `#errors` widget moved above `ContentSwitcher` so errors are always visible at a stable position regardless of which step is active; `_focus_step()` resets ListView `index` to 0 via `set_timer` on each step transition to clear stale cursor state
+- **➕:** `tests/test_ready_screen.py` — 8 Pilot integration tests: renders with results, plural title, file paths written to RichLog, ingest command widget present, Done navigates home and preserves `session_results`, Escape navigates to Inbox and preserves `session_results`, empty results renders without crash, `on_show` re-populates log when new results added after first visit
+- **⬆️:** `tests/test_inbox_screen.py` — session notice tests added: hidden when no results, shown with count and `[v]` hint when results exist, `v` key navigates to ReadyScreen, `v` noop when no results; regression test `test_session_notice_survives_refresh_with_no_config` verifies notice persists after `r` when config is absent
+- **🐞🛠️:** `tests/test_sync_screen.py` — `test_no_config_shows_error` used `pilot.click("#trigger-btn")` on an unfocused button; SyncScreen focuses RichLog on mount so the click was silently ignored. Fixed with `Button.press()` to match all other sync tests
+
 ## v0.7.0 (2026-05-18)
 
 - **➕:** `screens/inbox.py` — PDF Inbox screen: flat scan of `proton_drive` for PDFs sorted newest-first by mtime; ListView with filename, size, and modified date; count display (`N PDFs ready to process`); empty-state and config-missing guards; `r` refreshes without leaving screen; Enter on a file pushes WizardScreen with the selected path; Escape returns to Home
