@@ -62,7 +62,8 @@ class WizardScreen(Screen):
 
     DEFAULT_CSS = """
     WizardScreen {
-        align: center middle;
+        align: center top;
+        padding: 1 0;
     }
 
     #panel {
@@ -94,6 +95,7 @@ class WizardScreen(Screen):
 
     ContentSwitcher {
         height: auto;
+        max-height: 12;
     }
 
     .choice-list {
@@ -170,6 +172,7 @@ class WizardScreen(Screen):
             yield Static("KOS Capture — Naming Wizard", id="title")
             yield Static(self.file_path.name, id="filename")
             yield Static("", id="step-label")
+            yield Static("", id="errors")
             with ContentSwitcher(initial="step-suffix", id="switcher"):
                 with Vertical(id="step-suffix"):
                     yield ListView(
@@ -194,7 +197,6 @@ class WizardScreen(Screen):
                     yield Static("Destination:", id="dest-label")
                     yield Static("", id="dest-path")
                     yield Button("Move file →", id="confirm-btn", variant="primary")
-            yield Static("", id="errors")
             yield Static("[Enter] select  ·  [Esc] back", id="hint")
 
     def on_mount(self) -> None:
@@ -233,7 +235,13 @@ class WizardScreen(Screen):
         selector = self._STEP_FOCUS.get(self._step)
         if selector:
             try:
-                self.query_one(selector).focus()
+                widget = self.query_one(selector)
+                widget.focus()
+                if hasattr(widget, "index"):
+                    def _reset(w=widget) -> None:
+                        w.index = None
+                        w.index = 0
+                    self.set_timer(0.05, _reset)
             except Exception:
                 pass
 
