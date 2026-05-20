@@ -90,7 +90,7 @@ async def test_trigger_btn_enabled_on_mount():
 
 
 async def test_no_config_shows_error():
-    """Clicking Trigger Sync with no config shows an error message."""
+    """Pressing Trigger Sync with no config shows an error message."""
     status = _make_status()
     with patch("app.config.exists", return_value=False), \
          patch("screens.sync.rclone.status", return_value=status), \
@@ -98,7 +98,7 @@ async def test_no_config_shows_error():
         async with KosCaptureApp().run_test() as pilot:
             await pilot.pause()
             await _open_sync(pilot)
-            await pilot.click("#trigger-btn")
+            pilot.app.screen.query_one("#trigger-btn", Button).press()
             await pilot.pause()
             state_text = str(pilot.app.screen.query_one("#sync-state", Static).content)
             assert "config" in state_text.lower()
