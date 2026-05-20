@@ -208,3 +208,91 @@ async def test_enter_on_file_pushes_wizard(tmp_path):
             await pilot.press("enter")
             await pilot.pause()
             assert pilot.app.screen.__class__.__name__ == "WizardScreen"
+
+
+# ── Session notice ──────────────────────────────────────────────────────────
+
+async def test_session_notice_hidden_when_no_results(tmp_path):
+    """#session-notice is empty when session_results is empty."""
+    proton = tmp_path / "proton"; proton.mkdir()
+    mock_cfg = MagicMock()
+    mock_cfg.proton_drive = proton
+
+    with patch("app.config.exists", return_value=True), \
+         patch("screens.inbox.config.exists", return_value=True), \
+         patch("screens.inbox.config.load", return_value=mock_cfg):
+        async with KosCaptureApp().run_test() as pilot:
+            await _open_inbox(pilot)
+            notice = str(pilot.app.screen.query_one("#session-notice", Static).content)
+            assert notice.strip() == ""
+
+
+async def test_session_notice_shown_when_results_exist(tmp_path):
+    """#session-notice shows count and [v] hint when session_results is non-empty."""
+    proton = tmp_path / "proton"; proton.mkdir()
+    mock_cfg = MagicMock()
+    mock_cfg.proton_drive = proton
+
+    with patch("app.config.exists", return_value=True), \
+         patch("screens.inbox.config.exists", return_value=True), \
+         patch("screens.inbox.config.load", return_value=mock_cfg):
+        async with KosCaptureApp().run_test() as pilot:
+            pilot.app.session_results = [tmp_path / "moved.pdf"]
+            await _open_inbox(pilot)
+            notice = str(pilot.app.screen.query_one("#session-notice", Static).content)
+            assert "1" in notice
+            assert "v" in notice.lower() or "summary" in notice.lower()
+
+
+async def test_view_summary_navigates_to_ready(tmp_path):
+    """Pressing v with session_results populated switches to ReadyScreen."""
+    proton = tmp_path / "proton"; proton.mkdir()
+    mock_cfg = MagicMock()
+    mock_cfg.proton_drive = proton
+
+    with patch("app.config.exists", return_value=True), \
+         patch("screens.inbox.config.exists", return_value=True), \
+         patch("screens.inbox.config.load", return_value=mock_cfg):
+        async with KosCaptureApp().run_test() as pilot:
+            pilot.app.session_results = [tmp_path / "moved.pdf"]
+            await _open_inbox(pilot)
+            await pilot.press("v")
+            await pilot.pause()
+            assert pilot.app.screen.__class__.__name__ == "ReadyScreen"
+
+
+async def test_view_summary_noop_when_no_results(tmp_path):
+    """Pressing v with no session_results stays on InboxScreen."""
+    proton = tmp_path / "proton"; proton.mkdir()
+    mock_cfg = MagicMock()
+    mock_cfg.proton_drive = proton
+
+    with patch("app.config.exists", return_value=True), \
+         patch("screens.inbox.config.exists", return_value=True), \
+         patch("screens.inbox.config.load", return_value=mock_cfg):
+        async with KosCaptureApp().run_test() as pilot:
+            await _open_inbox(pilot)
+            await pilot.press("v")
+            await pilot.pause()
+            assert pilot.app.screen.__class__.__name__ == "InboxScreen"
+
+
+async def test_session_notice_survives_refresh_with_no_config(tmp_path):
+    """#session-notice stays visible after refresh even when config is absent.
+
+    Regression: _scan_and_display() returned early (no config), so
+    _update_notice() was never called and the notice was wiped on re-entry.
+    """
+    with patch("app.config.exists", return_value=True), \
+         patch("screens.inbox.config.exists", return_value=False):
+        async with KosCaptureApp().run_test() as pilot:
+            pilot.app.session_results = [tmp_path / "moved.pdf"]
+            await _open_inbox(pilot)
+            notice = str(pilot.app.screen.query_one("#session-notice", Static).content)
+            assert "1" in notice
+
+            # Refresh — _scan_and_display() returns early (no config)
+            await pilot.press("r")
+            await pilot.pause()
+            notice = str(pilot.app.screen.query_one("#session-notice", Static).content)
+            assert "1" in notice
