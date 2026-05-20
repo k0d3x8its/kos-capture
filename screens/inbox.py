@@ -54,6 +54,7 @@ class InboxScreen(Screen):
     BINDINGS = [
         Binding("escape", "go_back", "Back"),
         Binding("r", "refresh", "Refresh"),
+        Binding("v", "view_summary", "View Summary", show=False, priority=True),
     ]
 
     DEFAULT_CSS = """
@@ -99,6 +100,12 @@ class InboxScreen(Screen):
         margin-bottom: 1;
     }
 
+    #session-notice {
+        text-align: center;
+        height: 1;
+        padding: 0;
+    }
+
     #file-list > ListItem {
         background: transparent;
         height: 1;
@@ -131,6 +138,7 @@ class InboxScreen(Screen):
             yield Static("", id="scan-path")
             yield Static("", id="message")
             yield ListView(id="file-list")
+            yield Static("", id="session-notice")
         yield Footer()
 
     def on_mount(self) -> None:
@@ -147,6 +155,16 @@ class InboxScreen(Screen):
     def action_refresh(self) -> None:
         self._load()
 
+    def on_key(self, event) -> None:
+        if event.key == "v":
+            event.stop()
+            if self.app.session_results:
+                self.app.switch_screen("ready")
+
+    def action_view_summary(self) -> None:
+        if self.app.session_results:
+            self.app.switch_screen("ready")
+
     # ── List selection ─────────────────────────────────────────────────────
 
     def on_list_view_selected(self, event: ListView.Selected) -> None:
@@ -157,6 +175,20 @@ class InboxScreen(Screen):
     # ── Load / render ──────────────────────────────────────────────────────
 
     def _load(self) -> None:
+        self._scan_and_display()
+        self._update_notice()
+
+    def _update_notice(self) -> None:
+        sc = len(self.app.session_results)
+        if sc > 0:
+            sc_noun = "file" if sc == 1 else "files"
+            self.query_one("#session-notice", Static).update(
+                f"[#00ff41]{sc} {sc_noun} moved this session — \\[v] View Summary[/#00ff41]"
+            )
+        else:
+            self.query_one("#session-notice", Static).update("")
+
+    def _scan_and_display(self) -> None:
         if not config.exists():
             self.query_one("#scan-path", Static).update("")
             self.query_one("#message", Static).update(
