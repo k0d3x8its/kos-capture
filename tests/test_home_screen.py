@@ -125,7 +125,7 @@ async def test_nav_menu_present():
             await _open_home(pilot)
             lv = pilot.app.screen.query_one("#nav-list", ListView)
             assert lv is not None
-            assert len(lv.children) == 6
+            assert len(lv.children) == 7
 
 
 async def test_enter_on_config_item_pushes_setup():
@@ -137,8 +137,8 @@ async def test_enter_on_config_item_pushes_setup():
         async with KosCaptureApp().run_test() as pilot:
             await pilot.pause()
             await _open_home(pilot)
-            # ListView starts on index 0 (Sync); move down 3 times to reach Config (index 3)
-            await pilot.press("down", "down", "down")
+            # ListView starts on index 0 (Sync); move down 4 times to reach Config (index 4)
+            await pilot.press("down", "down", "down", "down")
             await pilot.press("enter")
             await pilot.pause()
             assert pilot.app.screen.query_one("#save-btn") is not None
@@ -154,8 +154,8 @@ async def test_enter_on_refresh_item_calls_status():
             await pilot.pause()
             await _open_home(pilot)
             calls_after_mount = mock_status.call_count
-            # Move down 4 times to reach Refresh (index 4)
-            await pilot.press("down", "down", "down", "down")
+            # Move down 5 times to reach Refresh (index 5)
+            await pilot.press("down", "down", "down", "down", "down")
             await pilot.press("enter")
             await pilot.pause()
             assert mock_status.call_count == calls_after_mount + 1
