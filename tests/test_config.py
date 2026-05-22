@@ -151,6 +151,14 @@ def test_load_missing_field_raises_valueerror(tmp_path):
             config.load()
 
 
+def test_load_raises_when_file_missing(tmp_path):
+    """load() raises FileNotFoundError when config file does not exist."""
+    cfg_path = tmp_path / "nonexistent.toml"
+    with patch.object(config, "CONFIG_PATH", cfg_path):
+        with pytest.raises(FileNotFoundError):
+            config.load()
+
+
 # --- load() ---
 
 def test_write_and_load_roundtrip(tmp_path):
