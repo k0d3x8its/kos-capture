@@ -244,7 +244,7 @@ async def test_session_notice_shown_when_results_exist(tmp_path):
             assert "v" in notice.lower() or "summary" in notice.lower()
 
 
-async def test_view_summary_navigates_to_ready(tmp_path):
+async def test_view_results_navigates_to_ready(tmp_path):
     """Pressing v with session_results populated switches to ReadyScreen."""
     proton = tmp_path / "proton"; proton.mkdir()
     mock_cfg = MagicMock()
@@ -261,7 +261,7 @@ async def test_view_summary_navigates_to_ready(tmp_path):
             assert pilot.app.screen.__class__.__name__ == "ReadyScreen"
 
 
-async def test_view_summary_noop_when_no_results(tmp_path):
+async def test_view_results_noop_when_no_results(tmp_path):
     """Pressing v with no session_results stays on InboxScreen."""
     proton = tmp_path / "proton"; proton.mkdir()
     mock_cfg = MagicMock()
