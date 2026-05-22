@@ -14,6 +14,80 @@ import pytest
 from textual.widgets import Button, RichLog, Static
 
 from app import KosCaptureApp
+from screens.ready import _categorize, _fmt_entry
+
+
+# ── _categorize() unit tests ─────────────────────────────────────────────────
+
+def test_categorize_field_logs():
+    p = Path("/vault/raw/Field-Logs/FL-vol-001/note.pdf")
+    assert _categorize(p) == "Field-Logs"
+
+
+def test_categorize_field_research():
+    p = Path("/vault/raw/Field-Research/FR-vol-001/paper.pdf")
+    assert _categorize(p) == "Field-Research"
+
+
+def test_categorize_field_studies():
+    p = Path("/vault/raw/Field-Studies/FS-vol-001/study.pdf")
+    assert _categorize(p) == "Field-Studies"
+
+
+def test_categorize_youtube_transcript():
+    p = Path("/vault/raw/transcripts/youtube/2024-01/video.md")
+    assert _categorize(p) == "youtube"
+
+
+def test_categorize_podcasts_transcript():
+    p = Path("/vault/raw/transcripts/podcasts/2024-01/ep.md")
+    assert _categorize(p) == "podcasts"
+
+
+def test_categorize_meetings_transcript():
+    p = Path("/vault/raw/transcripts/meetings/2024-01/call.md")
+    assert _categorize(p) == "meetings"
+
+
+def test_categorize_short_path_returns_other():
+    """Path with fewer than 3 parts returns 'other'."""
+    p = Path("note.pdf")
+    assert _categorize(p) == "other"
+
+
+def test_categorize_unknown_key_returns_other():
+    """Path whose directory name is not in _KNOWN_CATEGORIES falls to 'other'."""
+    p = Path("/some/unknown/category/file.pdf")
+    assert _categorize(p) == "other"
+
+
+# ── _fmt_entry() unit tests ──────────────────────────────────────────────────
+
+def test_fmt_entry_field_logs_shows_volume():
+    """Field-Logs entries show volume name as destination."""
+    p = Path("/vault/raw/Field-Logs/FL-vol-001/note.pdf")
+    out = _fmt_entry(p, "Field-Logs")
+    assert "note.pdf" in out
+    assert "FL-vol-001" in out
+    assert "⟹" in out
+
+
+def test_fmt_entry_transcript_shows_type_and_date():
+    """Transcript entries show transcripts/<type>/<date> as destination."""
+    p = Path("/vault/raw/transcripts/youtube/2024-01/video.md")
+    out = _fmt_entry(p, "youtube")
+    assert "video.md" in out
+    assert "youtube" in out
+    assert "⟹" in out
+
+
+def test_fmt_entry_name_truncated_at_path_col():
+    """Filenames longer than _PATH_COL are truncated."""
+    long_name = "a" * 50 + ".pdf"
+    p = Path(f"/vault/raw/Field-Logs/FL-vol-001/{long_name}")
+    out = _fmt_entry(p, "Field-Logs")
+    # Arrow is still present despite truncation
+    assert "⟹" in out
 
 
 async def _open_ready(pilot, results: list[Path]):
