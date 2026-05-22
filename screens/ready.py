@@ -3,17 +3,17 @@ screens/ready.py
 
 Session summary — shown after the user finishes processing Inbox files.
 
-File entries are formatted like the sync screen log: filename padded to a
-fixed column, double-line arrow, then collection/volume destination.
+Results are grouped by source category: Field Logs / Field Research /
+Field Studies (PDFs), then Meetings / YouTube / Podcasts (transcripts).
+Each group shows a bold header followed by indented file entries.
 Paths are checked for existence — missing files are dimmed with a ✗ marker.
 
 Navigation:
-  - Escape → back to Inbox
+  - Escape → back to Home
   - Done   → back to Home
 
 session_results persists across screens and only clears on app restart.
-That keeps "View Summary" reachable from Inbox throughout the run, so
-users never lose visibility by hitting Done by accident.
+That keeps "View Results" reachable throughout the run.
 """
 
 from __future__ import annotations
@@ -29,11 +29,36 @@ from textual.widgets import Button, Footer, RichLog, Static
 
 _PATH_COL = 31
 
+_CATEGORY_ORDER: list[tuple[str, str]] = [
+    ("Field-Logs",     "Field Logs"),
+    ("Field-Research", "Field Research"),
+    ("Field-Studies",  "Field Studies"),
+    ("meetings",       "Meetings"),
+    ("youtube",        "YouTube"),
+    ("podcasts",       "Podcasts"),
+]
 
-def _fmt_result(path: Path) -> str:
+_KNOWN_CATEGORIES: frozenset[str] = frozenset(k for k, _ in _CATEGORY_ORDER)
+
+
+def _categorize(path: Path) -> str:
+    parts = path.parts
+    if len(parts) >= 3 and parts[-3] == "transcripts":
+        key = parts[-2]           # youtube / podcasts / meetings
+    elif len(parts) >= 3:
+        key = parts[-3]           # Field-Logs / Field-Research / Field-Studies
+    else:
+        return "other"
+    return key if key in _KNOWN_CATEGORIES else "other"
+
+
+def _fmt_entry(path: Path, category: str) -> str:
     name = path.name
     parts = path.parts
-    dest = f"{parts[-3]}/{parts[-2]}" if len(parts) >= 3 else str(path.parent)
+    if category in ("Field-Logs", "Field-Research", "Field-Studies"):
+        dest = parts[-2] if len(parts) >= 2 else str(path.parent)
+    else:
+        dest = f"{parts[-3]}/{parts[-2]}" if len(parts) >= 3 else str(path.parent)
     p = min(len(name), _PATH_COL)
     pad = _PATH_COL - p
     return f"{name[:p]}{' ' * (pad + 1)}⟹  {dest}"
@@ -66,7 +91,7 @@ class ReadyScreen(Screen):
 
     #file-log {
         height: auto;
-        max-height: 12;
+        max-height: 15;
         border: round $panel;
         padding: 0 1;
         margin-bottom: 1;
@@ -129,12 +154,40 @@ class ReadyScreen(Screen):
         self.query_one("#title", Static).update(
             f"Session Complete — {count} {noun} Ready"
         )
+
+        if not self.app.session_results:
+            return
+
+        groups: dict[str, list[Path]] = {}
         for path in self.app.session_results:
-            line = _fmt_result(path)
-            if path.exists():
-                log.write(line)
-            else:
-                log.write(f"[dim]{line}  ✗[/dim]")
+            cat = _categorize(path)
+            groups.setdefault(cat, []).append(path)
+
+        first = True
+        for key, label in _CATEGORY_ORDER:
+            if key not in groups:
+                continue
+            if not first:
+                log.write("")
+            first = False
+            log.write(f"[bold #00ff41]{label}[/bold #00ff41]")
+            for path in groups[key]:
+                entry = _fmt_entry(path, key)
+                if path.exists():
+                    log.write(f"  {entry}")
+                else:
+                    log.write(f"  [dim]{entry}  ✗[/dim]")
+
+        if "other" in groups:
+            if not first:
+                log.write("")
+            log.write("[bold]Other[/bold]")
+            for path in groups["other"]:
+                entry = _fmt_entry(path, "other")
+                if path.exists():
+                    log.write(f"  {entry}")
+                else:
+                    log.write(f"  [dim]{entry}  ✗[/dim]")
 
     def on_mount(self) -> None:
         self._populate_log()
@@ -147,4 +200,4 @@ class ReadyScreen(Screen):
             self.app.switch_screen("home")
 
     def action_go_back(self) -> None:
-        self.app.switch_screen("inbox")
+        self.app.switch_screen("home")
