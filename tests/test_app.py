@@ -91,3 +91,84 @@ def test_on_mount_registers_theme_and_routes_to_home():
     mock_register.assert_called_once_with(TERMINAL_GREEN)
     assert app.theme == "terminal-green"
     mock_push.assert_called_once_with("home")
+
+
+def test_on_mount_initialises_session_results():
+    """on_mount() creates session_results as an empty list."""
+    app = KosCaptureApp()
+    with patch("app.config.exists", return_value=False), \
+         patch.object(app, "push_screen"), \
+         patch.object(app, "register_theme", wraps=app.register_theme):
+        app.on_mount()
+    assert hasattr(app, "session_results")
+    assert app.session_results == []
+
+
+# ── clipboard property ───────────────────────────────────────────────────────
+
+import subprocess as _subprocess
+
+
+def test_clipboard_returns_wl_paste_output():
+    """clipboard property returns wl-paste output when available."""
+    app = KosCaptureApp()
+    mock_result = MagicMock()
+    mock_result.returncode = 0
+    mock_result.stdout = "https://example.com"
+    with patch("subprocess.run", return_value=mock_result):
+        assert app.clipboard == "https://example.com"
+
+
+def test_clipboard_falls_back_to_xclip():
+    """clipboard property skips wl-paste (FileNotFoundError) and uses xclip."""
+    app = KosCaptureApp()
+
+    xclip_result = MagicMock()
+    xclip_result.returncode = 0
+    xclip_result.stdout = "from xclip"
+
+    def _side_effect(cmd, **kwargs):
+        if cmd[0] == "wl-paste":
+            raise FileNotFoundError
+        return xclip_result
+
+    with patch("subprocess.run", side_effect=_side_effect):
+        assert app.clipboard == "from xclip"
+
+
+def test_clipboard_falls_back_to_xsel():
+    """clipboard property falls through wl-paste and xclip to xsel."""
+    app = KosCaptureApp()
+
+    xsel_result = MagicMock()
+    xsel_result.returncode = 0
+    xsel_result.stdout = "from xsel"
+
+    def _side_effect(cmd, **kwargs):
+        if cmd[0] in ("wl-paste", "xclip"):
+            raise FileNotFoundError
+        return xsel_result
+
+    with patch("subprocess.run", side_effect=_side_effect):
+        assert app.clipboard == "from xsel"
+
+
+def test_clipboard_returns_empty_when_all_fail():
+    """clipboard property returns empty string when all backends are missing."""
+    app = KosCaptureApp()
+    app._clipboard = ""
+    with patch("subprocess.run", side_effect=FileNotFoundError):
+        assert app.clipboard == ""
+
+
+def test_clipboard_skips_nonzero_returncode():
+    """clipboard property skips a backend that returns a non-zero exit code."""
+    app = KosCaptureApp()
+    app._clipboard = ""
+
+    fail_result = MagicMock()
+    fail_result.returncode = 1
+    fail_result.stdout = ""
+
+    with patch("subprocess.run", return_value=fail_result):
+        assert app.clipboard == ""
