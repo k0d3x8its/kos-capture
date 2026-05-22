@@ -22,6 +22,38 @@ import pytest
 import core.transcribe as transcribe
 
 
+# --- _is_url() ---
+
+def test_is_url_http():
+    """_is_url() returns True for http:// URLs."""
+    assert transcribe._is_url("http://example.com/ep.mp3") is True
+
+
+def test_is_url_https():
+    """_is_url() returns True for https:// URLs."""
+    assert transcribe._is_url("https://www.youtube.com/watch?v=abc") is True
+
+
+def test_is_url_ftp():
+    """_is_url() returns True for ftp:// URLs."""
+    assert transcribe._is_url("ftp://files.example.com/ep.mp3") is True
+
+
+def test_is_url_local_path():
+    """_is_url() returns False for absolute local paths."""
+    assert transcribe._is_url("/home/user/recordings/ep.mp3") is False
+
+
+def test_is_url_path_object():
+    """_is_url() accepts Path objects and returns False for local paths."""
+    assert transcribe._is_url(Path("/tmp/recording.mp4")) is False
+
+
+def test_is_url_empty_string():
+    """_is_url() returns False for an empty string."""
+    assert transcribe._is_url("") is False
+
+
 # --- _fmt_time() ---
 
 def test_fmt_time_zero():
