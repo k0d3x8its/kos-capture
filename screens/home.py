@@ -17,6 +17,7 @@ import pyfiglet
 import core.config as config
 import core.rclone as rclone
 from screens.modal import ErrorModal
+from screens.ready import ReadyScreen
 from textual.app import ComposeResult
 from textual.binding import Binding
 from textual.containers import Center, Vertical
@@ -36,6 +37,7 @@ _NAV_ITEMS = [
     ("\\[s]---------Sync",   "nav-sync"),
     ("\\[i]--------Inbox",   "nav-inbox"),
     ("\\[t]---Transcribe",   "nav-transcribe"),
+    ("\\[v]-View Results",   "nav-ready"),
     ("\\[c]-------Config",   "nav-config"),
     ("\\[r]------Refresh",   "nav-refresh"),
     ("\\[^q]--------Quit",   "nav-quit"),
@@ -48,6 +50,7 @@ class HomeScreen(Screen):
         Binding("s", "go_sync",        show=False),
         Binding("i", "go_inbox",       show=False),
         Binding("t", "go_transcribe",  show=False),
+        Binding("v", "go_ready",       show=False),
         Binding("c", "go_config",      show=False),
         Binding("r", "refresh_status", show=False),
     ]
@@ -219,6 +222,7 @@ class HomeScreen(Screen):
             "nav-sync":       self.action_go_sync,
             "nav-inbox":      self.action_go_inbox,
             "nav-transcribe": self.action_go_transcribe,
+            "nav-ready":      self.action_go_ready,
             "nav-config":     self.action_go_config,
             "nav-refresh":    self.action_refresh_status,
             "nav-quit":       self.app.exit,
@@ -235,6 +239,12 @@ class HomeScreen(Screen):
 
     def action_go_transcribe(self) -> None:
         self.app.switch_screen("transcribe")
+
+    def action_go_ready(self) -> None:
+        if self.app.session_results:
+            self.app.switch_screen(ReadyScreen())
+        else:
+            self.notify("No results yet — process a file from Inbox or Transcribe.", severity="warning")
 
     def action_go_config(self) -> None:
         self.app.push_screen("setup")
