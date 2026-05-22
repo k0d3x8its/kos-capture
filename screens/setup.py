@@ -26,13 +26,14 @@ from textual.app import ComposeResult
 from textual.binding import Binding
 from textual.containers import Vertical
 from textual.screen import Screen
-from textual.widgets import Button, Input, Label, Static
+from textual.widgets import Button, Footer, Input, Label, Static
 
 
 class SetupScreen(Screen):
 
     BINDINGS = [
-        Binding("escape", "go_back", "Back", show=False),
+        Binding("escape", "go_back", "Back"),
+        Binding("ctrl+s", "save_config", "Save"),
     ]
 
     DEFAULT_CSS = """
@@ -111,6 +112,8 @@ class SetupScreen(Screen):
             yield Static("", id="errors")
             yield Button("Save", id="save-btn", variant="primary")
 
+        yield Footer()
+
     def on_show(self) -> None:
         self.query_one("#errors", Static).update("")
         if config.exists():
@@ -132,6 +135,9 @@ class SetupScreen(Screen):
     def action_go_back(self) -> None:
         if config.exists():
             self.app.pop_screen()
+
+    def action_save_config(self) -> None:
+        self._save()
 
     def on_input_submitted(self, event: Input.Submitted) -> None:
         self._save()
