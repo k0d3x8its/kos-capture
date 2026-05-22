@@ -16,6 +16,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import core.config as config
+from screens.ready import ReadyScreen
 from screens.wizard import WizardScreen
 from textual.app import ComposeResult
 from textual.binding import Binding
@@ -54,7 +55,7 @@ class InboxScreen(Screen):
     BINDINGS = [
         Binding("escape", "go_back", "Back"),
         Binding("r", "refresh", "Refresh"),
-        Binding("v", "view_summary", "View Summary", show=False, priority=True),
+        Binding("v", "view_results", "View Results", show=False, priority=True),
     ]
 
     DEFAULT_CSS = """
@@ -159,11 +160,11 @@ class InboxScreen(Screen):
         if event.key == "v":
             event.stop()
             if self.app.session_results:
-                self.app.switch_screen("ready")
+                self.app.switch_screen(ReadyScreen())
 
-    def action_view_summary(self) -> None:
+    def action_view_results(self) -> None:
         if self.app.session_results:
-            self.app.switch_screen("ready")
+            self.app.switch_screen(ReadyScreen())
 
     # ── List selection ─────────────────────────────────────────────────────
 
@@ -183,7 +184,7 @@ class InboxScreen(Screen):
         if sc > 0:
             sc_noun = "file" if sc == 1 else "files"
             self.query_one("#session-notice", Static).update(
-                f"[#00ff41]{sc} {sc_noun} moved this session — \\[v] View Summary[/#00ff41]"
+                f"[#00ff41]{sc} {sc_noun} moved this session — \\[v] View Results[/#00ff41]"
             )
         else:
             self.query_one("#session-notice", Static).update("")
