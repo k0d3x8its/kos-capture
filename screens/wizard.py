@@ -25,11 +25,12 @@ from pathlib import Path
 
 import core.config as config
 import core.vault as vault
+from screens.ready import ReadyScreen
 from textual.app import ComposeResult
 from textual.binding import Binding
 from textual.containers import Vertical
 from textual.screen import Screen
-from textual.widgets import Button, ContentSwitcher, Input, Label, ListItem, ListView, Static
+from textual.widgets import Button, ContentSwitcher, Footer, Input, Label, ListItem, ListView, Static
 
 
 _SUFFIXES: list[tuple[str, str]] = [
@@ -58,7 +59,7 @@ _NEW_VOLUME_LABEL = "+ New volume"
 
 class WizardScreen(Screen):
 
-    BINDINGS = [Binding("escape", "go_back", "Back", show=False)]
+    BINDINGS = [Binding("escape", "go_back", "Back")]
 
     DEFAULT_CSS = """
     WizardScreen {
@@ -197,7 +198,8 @@ class WizardScreen(Screen):
                     yield Static("Destination:", id="dest-label")
                     yield Static("", id="dest-path")
                     yield Button("Move file →", id="confirm-btn", variant="primary")
-            yield Static("[Enter] select  ·  [Esc] back", id="hint")
+            yield Static("\\[Enter] select  ·  \\[Esc] back", id="hint")
+        yield Footer()
 
     def on_mount(self) -> None:
         self._update_step_label()
@@ -359,5 +361,5 @@ class WizardScreen(Screen):
             errors.update(f"[red]Move failed: {exc}[/red]")
             return
         self.app.session_results.append(dest)
-        self.app.pop_screen()
         self.app.notify(f"Moved → {dest.name}", severity="information")
+        self.app.switch_screen(ReadyScreen())
