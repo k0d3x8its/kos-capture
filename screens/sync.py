@@ -60,8 +60,10 @@ def _fmt_log_line(raw: str) -> str | None:
         if am:
             path   = rest[:am.start()].rstrip(": ")
             action = am.group(1) + rest[am.end():]
-            p           = min(len(path), _PATH_COL)
-            path_padded = path[:p].ljust(_PATH_COL)
+            if len(path) > _PATH_COL:
+                path_padded = ("…" + path[-((_PATH_COL - 1)):]).ljust(_PATH_COL)
+            else:
+                path_padded = path.ljust(_PATH_COL)
             return f"{ts}  {path_padded}  ⟹  {action}"
         return f"{ts}  {rest}"
 
