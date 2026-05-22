@@ -3,76 +3,78 @@ core/transcribe.py
 
 Local transcription engine wrapping faster-whisper and yt-dlp.
 
-Handles three source types:
-    - meetings:  local MP4 file (from Proton Meet)
-    - youtube:   YouTube URL  → yt-dlp downloads audio → faster-whisper
-    - podcasts:  podcast URL or RSS → yt-dlp downloads audio → faster-whisper
+Source routing logic:
+    - meetings:          always a local file → faster-whisper directly
+    - youtube:           always a URL → yt-dlp download → faster-whisper
+    - podcasts (URL):    http/https URL → yt-dlp download → faster-whisper
+    - podcasts (local):  local file path → faster-whisper directly
+                         supports MP3, WAV, M4A, and any format ffmpeg handles
+
+Title resolution (run() title parameter):
+    - Supplied:   used as-is for the .md heading and filename stem
+    - None/blank: auto-derived — filename stem for local files,
+                  yt-dlp's returned video/episode title for URLs
 
 All transcription runs locally on CPU (int8 quantisation). No audio or
-transcript data is sent to any external service.
+transcript data leaves the machine.
 
 Output format:
     raw/transcripts/<source_type>/YYYY-MM-DD-<title>.md
 
-Each .md file contains a heading followed by one line per segment:
     # <title>
+
     [MM:SS] segment text
     [MM:SS] segment text
     ...
-
-yt-dlp is imported lazily inside _download_audio() so the app starts
-normally even if yt-dlp is not installed — the ImportError only surfaces
-when the user actually attempts a YouTube or Podcast transcription.
 """
 
 from __future__ import annotations
 
 import tempfile
+from collections.abc import Callable
 from datetime import date
 from pathlib import Path
 
 from faster_whisper import WhisperModel
 
-# Valid values for the source_type argument throughout this module.
 SOURCE_TYPES = ["meetings", "youtube", "podcasts"]
 
 
+def _is_url(source: str | Path) -> bool:
+    """Return True when source looks like an http/https/ftp URL."""
+    return str(source).startswith(("http://", "https://", "ftp://"))
+
+
 def _fmt_time(seconds: float) -> str:
-    """
-    Convert a float number of seconds to a [MM:SS] timestamp string.
-
-    faster-whisper returns segment start times as floats. This format matches
-    the KOS transcript convention used by /kos-ingest when parsing .md files.
-
-    Examples:
-        _fmt_time(0)    → '[00:00]'
-        _fmt_time(90)   → '[01:30]'
-        _fmt_time(3661) → '[61:01]'  (no hours — stays as total minutes)
-    """
     m, s = divmod(int(seconds), 60)
     return f"[{m:02d}:{s:02d}]"
 
 
-def _download_audio(url: str, tmp_dir: Path) -> tuple[Path, str]:
-    """
-    Download audio from a URL using yt-dlp and return (audio_path, title).
+def _download_audio(
+    url: str,
+    tmp_dir: Path,
+    on_dl_pct: Callable[[float], None] | None = None,
+) -> tuple[Path, str]:
+    """Download audio from a URL via yt-dlp; return (wav_path, title).
 
-    Audio is extracted to WAV format via FFmpegExtractAudio post-processor
-    so faster-whisper can read it directly without additional conversion.
-    Files are written to tmp_dir, which is a TemporaryDirectory managed by
-    the caller — cleanup is automatic when the context manager exits.
-
-    Raises RuntimeError if yt-dlp is not installed (ImportError caught here
-    and re-raised with a user-friendly message so the Transcribe screen can
-    display it cleanly).
-
-    quiet=True and no_warnings=True suppress yt-dlp's stdout chatter since
-    progress is handled at the screen level, not here.
+    Audio extracted to WAV so faster-whisper can read it without conversion.
+    Raises RuntimeError if yt-dlp is not installed.
     """
     try:
         import yt_dlp
     except ImportError:
-        raise RuntimeError("yt-dlp is required for YouTube and Podcast transcription")
+        raise RuntimeError("yt-dlp is required for YouTube and Podcast URL transcription")
+
+    def _progress_hook(d: dict) -> None:
+        if on_dl_pct is None:
+            return
+        if d["status"] == "downloading":
+            total = d.get("total_bytes") or d.get("total_bytes_estimate") or 0
+            downloaded = d.get("downloaded_bytes", 0)
+            if total > 0:
+                on_dl_pct(min(downloaded / total, 1.0))
+        elif d["status"] == "finished":
+            on_dl_pct(1.0)
 
     opts = {
         "format": "bestaudio/best",
@@ -80,52 +82,36 @@ def _download_audio(url: str, tmp_dir: Path) -> tuple[Path, str]:
         "postprocessors": [{"key": "FFmpegExtractAudio", "preferredcodec": "wav"}],
         "quiet": True,
         "no_warnings": True,
+        "progress_hooks": [_progress_hook],
     }
     with yt_dlp.YoutubeDL(opts) as ydl:
         info = ydl.extract_info(url, download=True)
         title = info.get("title", "audio")
 
-    # yt-dlp writes the extracted audio with a .wav extension after post-processing.
     matches = list(tmp_dir.glob("*.wav"))
     if not matches:
-        raise RuntimeError(f"yt-dlp download produced no audio file for: {url}")
+        raise RuntimeError(f"yt-dlp produced no audio file for: {url}")
     return matches[0], title
 
 
-def _transcribe_audio(audio_path: Path, model_size: str = "base") -> list[tuple[float, str]]:
-    """
-    Run faster-whisper on an audio file and return a list of (start, text) tuples.
-
-    Model is loaded fresh each call — acceptable for a TUI where transcription
-    is a user-triggered one-shot operation, not a batch pipeline.
-
-    device="cpu" and compute_type="int8" keeps memory usage low and removes
-    the GPU requirement. 'base' model is the default — good accuracy/speed
-    tradeoff for Field Notes and meeting audio.
-
-    Segments are stripped of leading/trailing whitespace because faster-whisper
-    sometimes includes a leading space in segment text.
-    """
+def _transcribe_audio(
+    audio_path: Path,
+    model_size: str = "base",
+    on_pct: Callable[[float], None] | None = None,
+) -> list[tuple[float, str]]:
+    """Run faster-whisper on any ffmpeg-readable audio file; return (start, text) pairs."""
     model = WhisperModel(model_size, device="cpu", compute_type="int8")
-    segments, _ = model.transcribe(str(audio_path))
-    return [(seg.start, seg.text.strip()) for seg in segments]
+    segments_gen, info = model.transcribe(str(audio_path))
+    total = info.duration or 0
+    result = []
+    for seg in segments_gen:
+        result.append((seg.start, seg.text.strip()))
+        if on_pct and total > 0:
+            on_pct(min(seg.end / total, 1.0))
+    return result
 
 
 def _write_md(segments: list[tuple[float, str]], title: str, out_path: Path) -> None:
-    """
-    Write a timestamped markdown file from a list of (start_seconds, text) segments.
-
-    Format:
-        # <title>
-
-        [00:00] First segment text
-        [01:23] Second segment text
-        ...
-
-    The heading matches the title passed in by run() — usually the filename
-    stem or the YouTube video title. /kos-ingest uses this heading when
-    creating the wiki source page.
-    """
     lines = [f"# {title}\n"]
     for start, text in segments:
         lines.append(f"{_fmt_time(start)} {text}")
@@ -136,44 +122,58 @@ def run(
     source_type: str,
     source: str | Path,
     transcript_dir: Path,
-    title: str,
+    title: str | None = None,
     model_size: str = "base",
+    on_progress: Callable[[str], None] | None = None,
+    on_pct: Callable[[float], None] | None = None,
+    on_dl_pct: Callable[[float], None] | None = None,
+    on_transcribing: Callable[[], None] | None = None,
 ) -> Path:
-    """
-    Transcribe a source and write the output .md file. Returns the output path.
-
-    This is the single entry point called by screens/transcribe.py.
+    """Transcribe a source and write the output .md. Returns the output path.
 
     Arguments:
-        source_type:    "meetings" | "youtube" | "podcasts"
-        source:         local file Path for meetings; URL string for youtube/podcasts
-        transcript_dir: destination directory (vault_root/raw/transcripts/<source_type>/)
-        title:          used as the .md heading and filename stem
-        model_size:     faster-whisper model size (default "base")
+        source_type:  "meetings" | "youtube" | "podcasts"
+        source:       local file path or URL string
+        transcript_dir: destination (vault_root/raw/transcripts/<source_type>/)
+        title:        .md heading and filename stem; None = auto-derive
+        model_size:   faster-whisper model size (default "base")
+        on_progress:  optional callback(msg) called at each stage for live UI updates
 
-    Output filename: YYYY-MM-DD-<title-with-hyphens>.md
-    Spaces in title are replaced with hyphens to keep filenames shell-friendly.
-
-    For youtube/podcasts: audio is downloaded to a TemporaryDirectory that is
-    automatically cleaned up after transcription, regardless of success or failure.
-    The local machine retains only the .md transcript — no audio is kept.
+    Routing:
+        Local path (meetings always; podcasts when source is not a URL):
+            faster-whisper reads the file directly — any format ffmpeg handles.
+        URL (youtube always; podcasts when source starts with http/https/ftp):
+            yt-dlp downloads to a TemporaryDirectory → faster-whisper → tmp cleaned up.
     """
-    transcript_dir.mkdir(parents=True, exist_ok=True)
-    filename = f"{date.today().isoformat()}-{title.replace(' ', '-')}.md"
-    out_path = transcript_dir / filename
+    def _emit(msg: str) -> None:
+        if on_progress:
+            on_progress(msg)
 
-    if source_type == "meetings":
-        # Local MP4 — pass directly to faster-whisper, no download step needed.
-        audio_path = Path(source)
-        segments = _transcribe_audio(audio_path, model_size)
-        _write_md(segments, title, out_path)
-    else:
-        # YouTube or Podcast — download audio to a temp dir, transcribe, then
-        # let the TemporaryDirectory context manager delete the audio on exit.
+    transcript_dir.mkdir(parents=True, exist_ok=True)
+
+    use_url = source_type == "youtube" or (source_type == "podcasts" and _is_url(source))
+
+    if use_url:
         with tempfile.TemporaryDirectory() as tmp:
             tmp_dir = Path(tmp)
-            audio_path, _ = _download_audio(str(source), tmp_dir)
-            segments = _transcribe_audio(audio_path, model_size)
-            _write_md(segments, title, out_path)
+            _emit("Downloading audio via yt-dlp…")
+            audio_path, yt_title = _download_audio(str(source), tmp_dir, on_dl_pct)
+            _title = title or yt_title
+            _emit(f'Audio ready — "{_title}"')
+            _emit("Transcribing… this may take several minutes on CPU")
+            if on_transcribing:
+                on_transcribing()
+            segments = _transcribe_audio(audio_path, model_size, on_pct)
+    else:
+        audio_path = Path(source).expanduser()
+        _title = title or audio_path.stem
+        _emit(f"Transcribing {audio_path.name}…")
+        if on_transcribing:
+            on_transcribing()
+        segments = _transcribe_audio(audio_path, model_size, on_pct)
 
+    filename = f"{_title.replace(' ', '-')}-{date.today().isoformat()}.md"
+    out_path = transcript_dir / filename
+    _write_md(segments, _title, out_path)
+    _emit(f"Done — {out_path.name}")
     return out_path
