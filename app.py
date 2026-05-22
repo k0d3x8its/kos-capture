@@ -16,6 +16,7 @@ Screen navigation model:
       respectively, then popped when the flow completes.
 """
 
+import subprocess
 from pathlib import Path
 
 import core.config as config
@@ -74,6 +75,24 @@ class KosCaptureApp(App):
         Binding("i", "switch_screen('inbox')", "Inbox"),
         Binding("t", "switch_screen('transcribe')", "Transcribe"),
     ]
+
+    @property
+    def clipboard(self) -> str:
+        """System clipboard — tries wl-paste (Wayland), xclip, xsel in order."""
+        for cmd in (
+            ["wl-paste", "--no-newline"],
+            ["xclip", "-selection", "clipboard", "-o"],
+            ["xsel", "--clipboard", "--output"],
+        ):
+            try:
+                result = subprocess.run(cmd, capture_output=True, text=True, timeout=2)
+                if result.returncode == 0:
+                    return result.stdout
+            except FileNotFoundError:
+                continue
+            except Exception:
+                break
+        return self._clipboard
 
     def on_mount(self) -> None:
         self.session_results: list[Path] = []
