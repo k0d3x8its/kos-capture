@@ -369,8 +369,8 @@ async def test_confirm_move_appends_to_session_results(tmp_path):
             assert "scan.pdf" in pilot.app.session_results[0].name
 
 
-async def test_confirm_move_pops_screen(tmp_path):
-    """After a successful move, WizardScreen is popped (Inbox is shown)."""
+async def test_confirm_move_switches_to_ready(tmp_path):
+    """After a successful move, WizardScreen switches to ReadyScreen."""
     pdf = tmp_path / "scan.pdf"; pdf.touch()
     vault_root = tmp_path / "vault"
     dest_dir = tmp_path / "dest"; dest_dir.mkdir()
@@ -378,11 +378,8 @@ async def test_confirm_move_pops_screen(tmp_path):
     with patch("app.config.exists", return_value=False), \
          patch("screens.wizard.vault.volumes", return_value=["FL-vol-001"]), \
          patch("screens.wizard.vault.volume_path", return_value=dest_dir), \
-         patch("screens.wizard.shutil.move"), \
-         patch("screens.inbox.config.exists", return_value=False):
+         patch("screens.wizard.shutil.move"):
         async with KosCaptureApp().run_test() as pilot:
-            await pilot.pause()
-            await pilot.app.push_screen("inbox")
             await pilot.pause()
             await _open_wizard(pilot, pdf, vault_root)
             await pilot.press("enter")
@@ -393,7 +390,7 @@ async def test_confirm_move_pops_screen(tmp_path):
             await pilot.pause()
             pilot.app.screen.query_one("#confirm-btn", Button).press()
             await pilot.pause()
-            assert pilot.app.screen.__class__.__name__ == "InboxScreen"
+            assert pilot.app.screen.__class__.__name__ == "ReadyScreen"
 
 
 # ── Escape navigation ────────────────────────────────────────────────────────
