@@ -209,7 +209,7 @@ async def test_escape_on_input_step_returns_to_source():
 
 
 async def test_escape_blocked_during_transcription():
-    """Escape while transcription is running shows a warning and stays on the screen."""
+    """Escape while transcription is running fires a toast and stays on the screen."""
     with patch("app.config.exists", return_value=False):
         async with KosCaptureApp().run_test() as pilot:
             await _open_transcribe(pilot)
@@ -218,8 +218,8 @@ async def test_escape_blocked_during_transcription():
             await pilot.press("escape")
             await pilot.pause()
             assert pilot.app.screen is screen
-            errors = str(screen.query_one("#errors", Static).content)
-            assert "progress" in errors.lower() or "wait" in errors.lower()
+            # Warning delivered via toast — errors widget stays empty
+            assert str(screen.query_one("#errors", Static).content) == ""
 
 
 async def test_on_show_resets_to_source_step():
