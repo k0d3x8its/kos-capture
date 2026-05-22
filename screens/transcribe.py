@@ -278,7 +278,7 @@ class TranscribeScreen(Screen):
                     def _reset(w=widget) -> None:
                         w.index = None
                         w.index = 0
-                    self.set_timer(0.05, _reset)
+                    self.call_after_refresh(_reset)
             except Exception:
                 pass
 
