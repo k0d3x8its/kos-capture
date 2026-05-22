@@ -243,3 +243,46 @@ async def test_t_key_navigates_to_transcribe():
             await pilot.press("t")
             await pilot.pause()
             assert pilot.app.screen.__class__.__name__ == "TranscribeScreen"
+
+
+async def test_last_sync_midnight_shows_12am():
+    """Hour 0 (midnight) formats as 12:xx AM, not 0:xx AM."""
+    status = _make_status(last_sync=datetime(2026, 5, 18, 0, 5))
+    with patch("app.config.exists", return_value=False), \
+         patch("screens.home.rclone.status", return_value=status), \
+         patch("screens.home.config.exists", return_value=False):
+        async with KosCaptureApp().run_test() as pilot:
+            await pilot.pause()
+            await _open_home(pilot)
+            sync_text = str(pilot.app.screen.query_one("#status-sync", Static).content)
+            assert "12:05" in sync_text
+            assert "AM" in sync_text
+
+
+async def test_last_sync_noon_shows_12pm():
+    """Hour 12 (noon) formats as 12:xx PM, not 0:xx PM."""
+    status = _make_status(last_sync=datetime(2026, 5, 18, 12, 0))
+    with patch("app.config.exists", return_value=False), \
+         patch("screens.home.rclone.status", return_value=status), \
+         patch("screens.home.config.exists", return_value=False):
+        async with KosCaptureApp().run_test() as pilot:
+            await pilot.pause()
+            await _open_home(pilot)
+            sync_text = str(pilot.app.screen.query_one("#status-sync", Static).content)
+            assert "12:00" in sync_text
+            assert "PM" in sync_text
+
+
+async def test_error_modal_dismiss_setup_pushes_setup_screen():
+    """_on_error_modal_dismiss('setup') navigates to the setup screen."""
+    status = _make_status()
+    with patch("app.config.exists", return_value=False), \
+         patch("screens.home.rclone.status", return_value=status), \
+         patch("screens.home.config.exists", return_value=False):
+        async with KosCaptureApp().run_test() as pilot:
+            await pilot.pause()
+            await _open_home(pilot)
+            screen = pilot.app.screen
+            screen._on_error_modal_dismiss("setup")
+            await pilot.pause()
+            assert pilot.app.screen.query_one("#save-btn") is not None
