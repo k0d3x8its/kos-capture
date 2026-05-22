@@ -412,6 +412,119 @@ async def test_escape_on_first_step_pops_to_previous_screen(tmp_path):
             assert pilot.app.screen.__class__.__name__ == "InboxScreen"
 
 
+async def test_escape_on_new_volume_step_returns_to_volume(tmp_path):
+    """Pressing Escape on the new-volume step returns to volume list."""
+    pdf = tmp_path / "scan.pdf"; pdf.touch()
+    vault_root = tmp_path / "vault"
+
+    with patch("app.config.exists", return_value=False), \
+         patch("screens.wizard.vault.volumes", return_value=[]):
+        async with KosCaptureApp().run_test() as pilot:
+            await pilot.pause()
+            await _open_wizard(pilot, pdf, vault_root)
+            await pilot.press("enter")  # suffix
+            await pilot.pause()
+            await pilot.press("enter")  # collection
+            await pilot.pause()
+            await pilot.press("enter")  # "+ New volume" (only item)
+            await pilot.pause()
+            assert pilot.app.screen.query_one(ContentSwitcher).current == "step-new-volume"
+            await pilot.press("escape")
+            await pilot.pause()
+            assert pilot.app.screen.query_one(ContentSwitcher).current == "step-volume"
+
+
+async def test_escape_on_confirm_step_returns_to_volume(tmp_path):
+    """Pressing Escape on the confirm step returns to volume list."""
+    pdf = tmp_path / "scan.pdf"; pdf.touch()
+    vault_root = tmp_path / "vault"
+    dest_dir = tmp_path / "dest"
+
+    with patch("app.config.exists", return_value=False), \
+         patch("screens.wizard.vault.volumes", return_value=["FL-vol-001"]), \
+         patch("screens.wizard.vault.volume_path", return_value=dest_dir):
+        async with KosCaptureApp().run_test() as pilot:
+            await pilot.pause()
+            await _open_wizard(pilot, pdf, vault_root)
+            await pilot.press("enter")  # suffix
+            await pilot.pause()
+            await pilot.press("enter")  # collection
+            await pilot.pause()
+            await pilot.press("enter")  # volume
+            await pilot.pause()
+            assert pilot.app.screen.query_one(ContentSwitcher).current == "step-confirm"
+            await pilot.press("escape")
+            await pilot.pause()
+            assert pilot.app.screen.query_one(ContentSwitcher).current == "step-volume"
+
+
+async def test_build_confirm_shows_error_when_no_vault_root(tmp_path):
+    """_build_confirm() updates #dest-path with an error when _vault_root is None."""
+    pdf = tmp_path / "scan.pdf"; pdf.touch()
+
+    with patch("app.config.exists", return_value=False), \
+         patch("screens.wizard.config.exists", return_value=False):
+        async with KosCaptureApp().run_test() as pilot:
+            await pilot.pause()
+            await pilot.app.push_screen(WizardScreen(pdf))
+            await pilot.pause()
+            screen = pilot.app.screen
+            screen._collection = "Field-Logs"
+            screen._volume = "FL-vol-001"
+            screen._build_confirm()
+            dest = str(screen.query_one("#dest-path", Static).content)
+            assert "No vault root" in dest
+
+
+async def test_confirm_move_shows_error_on_move_failure(tmp_path):
+    """_confirm_move() shows error text when shutil.move raises."""
+    pdf = tmp_path / "scan.pdf"; pdf.touch()
+    vault_root = tmp_path / "vault"
+    dest_dir = tmp_path / "dest"
+
+    with patch("app.config.exists", return_value=False), \
+         patch("screens.wizard.vault.volumes", return_value=["FL-vol-001"]), \
+         patch("screens.wizard.vault.volume_path", return_value=dest_dir), \
+         patch("screens.wizard.shutil.move", side_effect=OSError("disk full")):
+        async with KosCaptureApp().run_test() as pilot:
+            await pilot.pause()
+            await _open_wizard(pilot, pdf, vault_root)
+            await pilot.press("enter")  # suffix
+            await pilot.pause()
+            await pilot.press("enter")  # collection
+            await pilot.pause()
+            await pilot.press("enter")  # volume
+            await pilot.pause()
+            pilot.app.screen.query_one("#confirm-btn", Button).press()
+            await pilot.pause()
+            errors = str(pilot.app.screen.query_one("#errors", Static).content)
+            assert "disk full" in errors or "Move failed" in errors
+
+
+async def test_new_volume_via_input_submit(tmp_path):
+    """Submitting the new-volume Input (Enter) advances to confirm step."""
+    pdf = tmp_path / "scan.pdf"; pdf.touch()
+    vault_root = tmp_path / "vault"
+
+    with patch("app.config.exists", return_value=False), \
+         patch("screens.wizard.vault.volumes", return_value=[]), \
+         patch("screens.wizard.vault.create_volume"):
+        async with KosCaptureApp().run_test() as pilot:
+            await pilot.pause()
+            await _open_wizard(pilot, pdf, vault_root)
+            await pilot.press("enter")  # suffix
+            await pilot.pause()
+            await pilot.press("enter")  # collection
+            await pilot.pause()
+            await pilot.press("enter")  # "+ New volume"
+            await pilot.pause()
+            inp = pilot.app.screen.query_one("#new-vol-input", Input)
+            inp.value = "FL-vol-007"
+            await pilot.press("enter")  # submit input
+            await pilot.pause()
+            assert pilot.app.screen.query_one(ContentSwitcher).current == "step-confirm"
+
+
 async def test_escape_on_collection_step_returns_to_suffix(tmp_path):
     """Pressing Escape on the collection step returns to suffix."""
     pdf = tmp_path / "scan.pdf"; pdf.touch()
