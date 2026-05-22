@@ -100,7 +100,7 @@ source .venv/bin/activate      # macOS / Linux
 pip install -r requirements.txt
 ```
 
-> **`yt-dlp` is optional.** It is only required if you use the YouTube or Podcast transcription sources. If you only transcribe Proton Meet recordings (local MP4s), you can skip it:
+> **`yt-dlp` is optional.** It is only required for URL-based sources — YouTube (always) and Podcast when the input is an http/https URL. Proton Meet recordings and local podcast files go directly to faster-whisper with no download step. If you only use local files, you can skip it:
 > ```bash
 > pip install textual pyfiglet tomli faster-whisper
 > ```
@@ -125,19 +125,21 @@ python main.py
 
 ## Setup Screen
 
-On first run, you'll be prompted for two paths:
+On first run, you'll be prompted for three fields:
 
 | Field | What to enter |
 |---|---|
 | Proton Drive local path | The local directory where rclone syncs your Field Notes scans |
 | KOS vault root | The root directory of your KOS vault |
+| Proton Drive remote path | The subfolder on Proton Drive to scope syncs (e.g. `Photos/Field-Notes`) |
 
-Both paths are validated before being written to `~/.config/kos-capture/config.toml`. Everything else is derived from them.
+All fields are validated before being written to `~/.config/kos-capture/config.toml`. Everything else is derived from them.
 
 ```toml
 [paths]
 proton_drive = "<your Proton Drive local sync folder>"
 vault_root   = "<your KOS vault root>"
+remote_path  = "<your Proton Drive subfolder>"
 ```
 
 ---
@@ -151,8 +153,8 @@ vault_root   = "<your KOS vault root>"
 | **Sync** | Shows last rclone sync time and systemd timer status; trigger a manual sync |
 | **Inbox** | Lists PDFs detected in your Proton Drive sync folder awaiting processing |
 | **Naming Wizard** | Per-file: choose suffix (`-sticky` / `-under` / `-flip` / bare), select collection and volume, confirm move |
-| **Transcribe** | Choose source type — Proton Meet (local MP4), YouTube (URL), or Podcast (URL or RSS) — then run transcription |
-| **Ready** | Lists all files moved or transcribed this session with their exact paths; prompts you to run `/kos-ingest` in your agent |
+| **Transcribe** | Choose source type — Proton Meet (local file), YouTube (URL), or Podcast (URL or local file) — then run transcription |
+| **Ready** | Lists all files moved or transcribed this session, grouped by category (Field Logs, Field Research, Field Studies, Meetings, YouTube, Podcasts); prompts you to run `/kos-ingest` in your agent |
 
 ---
 
@@ -199,9 +201,10 @@ Volumes are auto-detected from your vault. You can create a new volume directory
 
 ```
 Source:
-  Proton Meet → local MP4
-  YouTube     → URL → yt-dlp downloads audio        (requires yt-dlp)
-  Podcast     → URL or RSS → yt-dlp downloads audio  (requires yt-dlp)
+  Proton Meet → local file (MP4, MP3, WAV, M4A, any ffmpeg format)
+  YouTube     → URL → yt-dlp downloads audio              (requires yt-dlp)
+  Podcast     → URL → yt-dlp downloads audio              (requires yt-dlp)
+              → local file → faster-whisper directly      (no yt-dlp needed)
         ↓
 faster-whisper transcribes locally (CPU, int8 — no GPU required)
         ↓
@@ -215,7 +218,7 @@ Dropped into:
 ✅ Ready screen — run /kos-ingest in your agent
 ```
 
-Transcript filenames are prefixed with the date: `YYYY-MM-DD - <source-name>.md`.
+Transcript filenames: `<title>-YYYY-MM-DD.md`. Title is auto-derived from the filename stem (local files) or the video/episode title returned by yt-dlp (URLs), or overridden via the optional Title field in the Transcribe screen.
 
 All transcription runs locally. No audio or transcript data is sent to any external service.
 
