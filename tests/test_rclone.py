@@ -92,6 +92,39 @@ def test_last_sync_time_parses_valid():
         assert dt.minute == 30
 
 
+def test_last_sync_time_strips_non_utc_timezone():
+    """last_sync_time() falls back to stripping the TZ word for CDT/EDT/PST etc."""
+    result = MagicMock()
+    result.stdout = "LastTriggerUSec=Mon 2026-05-18 10:30:00 EDT\n"
+    with patch("subprocess.run", return_value=result):
+        dt = rclone.last_sync_time()
+        assert dt is not None
+        assert dt.year == 2026
+        assert dt.hour == 10
+        assert dt.minute == 30
+
+
+def test_last_sync_time_parses_raw_microseconds():
+    """last_sync_time() converts a raw integer (usec since epoch) to datetime."""
+    from datetime import datetime as _dt
+    # Use a fixed known timestamp: 2026-05-18 10:30:00 UTC in microseconds
+    usec = int(_dt(2026, 5, 18, 10, 30, 0).timestamp() * 1_000_000)
+    result = MagicMock()
+    result.stdout = f"LastTriggerUSec={usec}\n"
+    with patch("subprocess.run", return_value=result):
+        dt = rclone.last_sync_time()
+        assert dt is not None
+        assert dt.year == 2026
+        assert dt.month == 5
+        assert dt.day == 18
+
+
+def test_check_remote_returns_false_on_oserror():
+    """check_remote() returns False when subprocess.run raises OSError."""
+    with patch("subprocess.run", side_effect=OSError("network unreachable")):
+        assert rclone.check_remote("Photos/Field-Notes") is False
+
+
 # --- status() ---
 
 def test_status_returns_dataclass():
