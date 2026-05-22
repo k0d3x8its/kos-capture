@@ -52,6 +52,16 @@ def test_volumes_ignores_files(tmp_path):
     assert vault.volumes(tmp_path, "Field-Logs") == ["FL-vol-001"]
 
 
+def test_volumes_includes_symlinks_to_directories(tmp_path):
+    """volumes() counts symlinks that point to directories as valid volumes."""
+    coll = tmp_path / "raw" / "Field-Logs"
+    coll.mkdir(parents=True)
+    real_vol = tmp_path / "FL-vol-real"
+    real_vol.mkdir()
+    (coll / "FL-vol-link").symlink_to(real_vol)
+    assert "FL-vol-link" in vault.volumes(tmp_path, "Field-Logs")
+
+
 # --- create_volume() ---
 
 def test_create_volume(tmp_path):
