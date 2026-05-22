@@ -3,6 +3,8 @@
 <div style="display: flex; gap: 10px;">
 <img alt="CI" src="https://github.com/k0d3x8its/kos-capture/actions/workflows/ci.yml/badge.svg?branch=main">
 <img alt="License" src="https://img.shields.io/badge/License-Apache_2.0-blue.svg">
+<img alt="Python" src="https://img.shields.io/badge/Python-3.10%2B-3776AB?logo=python&logoColor=white">
+<img alt="Proton" src="https://img.shields.io/badge/Proton-6D4AFF?logo=proton&logoColor=white">
 </div></br>
 
 > A TUI capture pipeline for [Kodex OS](https://github.com/k0d3x8its/kodex-os) — wraps Field Notes scanning, file naming, and audio/video transcription into a single keyboard-driven interface. Built with Textual.
