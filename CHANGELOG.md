@@ -1,5 +1,31 @@
 # Changelog
 
+## v1.0.0 (2026-05-21)
+
+UI consistency and navigation polish pass — all screens now share a coherent navigation model, Ready screen groups results by category, and the full session flow (Inbox → Wizard → Ready → Home, Transcribe → Ready → Home) is exercised end-to-end by the test suite.
+
+- **⬆️:** `screens/home.py` — View Results (`v`) added to nav menu and BINDINGS; `action_go_ready` switches to a fresh `ReadyScreen()` instance when `session_results` is non-empty; shows a warning toast when empty so the user knows why nothing happened
+- **⬆️:** `screens/inbox.py` — renamed `action_view_summary` → `action_view_results` and binding label to "View Results" throughout; session notice hint updated to `[v] View Results`; both `on_key` handler and action now switch to `ReadyScreen()` instance (bypasses Textual's named-screen cache to guarantee fresh render)
+- **⬆️:** `screens/ready.py` — results grouped by source category with bold green headers (`Field Logs`, `Field Research`, `Field Studies`, `Meetings`, `YouTube`, `Podcasts`); `_categorize()` routes by path structure with `_KNOWN_CATEGORIES` guard so unknown paths fall to `Other` instead of being silently dropped; `_fmt_entry()` shows volume name for PDFs and `transcripts/<type>/<date>` for transcripts; `#file-log` `max-height` raised from 12 → 15 and scrolls internally so the terminal window stays still as the list grows; Escape now navigates to Home (was Inbox)
+- **🐞🛠️:** `screens/ready.py` — first item only appeared on repeat visits: Textual caches named screens so `RichLog.clear()` + `write()` on a stale instance didn't re-render reliably. Fixed by switching all callers (`home`, `inbox`, `wizard`, `transcribe`) to pass a fresh `ReadyScreen()` instance instead of the `"ready"` string key
+- **⬆️:** `screens/setup.py` — Footer added; Back binding made visible in footer; `ctrl+s` binding added (`action_save_config` delegates to `_save()`) so users can save without reaching for the Save button
+- **⬆️:** `screens/wizard.py` — Footer added; Back binding made visible; hint text markup fixed (`\\[Enter]` / `\\[Esc]` → renders as literal brackets); `_confirm_move` switches to `ReadyScreen()` instead of `pop_screen()` so the processed PDF appears in the session list immediately
+- **⬆️:** `tests/test_home_screen.py` — nav item count updated from 6 → 7; cursor `down` counts incremented for Config and Refresh item navigation tests
+- **⬆️:** `tests/test_inbox_screen.py` — `test_view_summary_*` renamed to `test_view_results_*`
+- **⬆️:** `tests/test_ready_screen.py` — `test_ready_log_header_precedes_items` added: populates four categories, asserts each header precedes its items in `log.lines` and category order matches `_CATEGORY_ORDER`; `test_ready_escape_preserves_results_and_goes_home` updated (was asserting Inbox, now Home)
+- **⬆️:** `tests/test_wizard_screen.py` — `test_confirm_move_switches_to_ready` replaces `test_confirm_move_pops_screen`; asserts `ReadyScreen` is active after confirm and `session_results` contains the moved path
+
+## v0.9.0 (2026-05-20)
+
+Full TranscribeScreen implementation with live progress, download bar, and on-show state reset. `core/transcribe` upgraded with per-segment and per-download progress callbacks, local-file podcast routing, and auto-title derivation.
+
+- **➕:** `screens/transcribe.py` — full rewrite from stub: two-step flow (source type → input/begin → running); `_SOURCES` list (`Proton Meet`, `YouTube`, `Podcast`); per-source placeholder and title-placeholder text; `_begin()` validates local paths before launching worker; `@work(thread=True)` worker streams `on_progress` messages to `RichLog` and fires `on_pct` / `on_dl_pct` callbacks to update `ProgressBar` widgets; download bar (`#run-dl-progress`) shown only for URL sources (YouTube always, Podcast when input starts with `http`); `on_show` resets to step-source when not transcribing via `call_after_refresh`; Escape during transcription fires a warning toast instead of stale inline text; success switches to a fresh `ReadyScreen()` instance
+- **⬆️:** `core/transcribe.py` — `_is_url()` helper extracted and used throughout; `run()` now accepts `on_progress`, `on_pct`, `on_dl_pct`, `on_transcribing` callbacks for live UI updates; `title` parameter made optional — auto-derived from filename stem (local) or yt-dlp `info["title"]` (URL); `_transcribe_audio()` accepts `on_pct` and fires it per segment using `seg.end / info.duration`; `_download_audio()` accepts `on_dl_pct` and fires it from the yt-dlp progress hook; local-file podcast routing added — podcasts with a non-URL source skip yt-dlp and pass the file directly to faster-whisper; `run()` routes on `use_url` flag rather than `source_type` alone
+- **➕:** `app.py` — `clipboard` property: tries `wl-paste --no-newline` (Wayland), then `xclip`, then `xsel` in order; returns empty string on total failure; avoids hardcoding a single clipboard backend
+- **➕:** `tests/test_transcribe_screen.py` — 27 Pilot integration tests: renders, source selection advances to input step, each source sets correct `_source_type`, Escape on source returns to Home, Escape on input returns to source, begin validation (empty input, missing file, no config), begin launches worker, on-show resets to source step, title field optional, `on_pct` / `on_dl_pct` callbacks fire during worker, download bar visibility for all four source-path combinations
+- **⬆️:** `tests/test_transcribe.py` — `test_on_pct_called_per_segment` and `test_on_pct_not_called_when_duration_zero` added; title auto-derivation tests added for local-file and URL paths; `run()` signature updated throughout for optional `title` and new callback params
+- **⬆️:** `tests/test_wizard_screen.py` — `-under` and `-flip` suffix selection tests added
+
 ## v0.8.0 (2026-05-19)
 
 - **🐞🛠️:** `screens/inbox.py` — session notice disappeared on refresh: `_load()` had early-return paths inside `_scan_and_display()` that skipped the notice update entirely. Fixed by splitting `_load()` into sequential `_scan_and_display()` + `_update_notice()` calls so the notice always re-renders regardless of config or folder state
