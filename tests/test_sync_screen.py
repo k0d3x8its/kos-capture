@@ -16,6 +16,7 @@ from textual.widgets import Button, RichLog, Static
 
 from app import KosCaptureApp
 from core.rclone import RcloneStatus
+from screens.sync import _fmt_log_line, _to_mbps
 
 
 def _make_status(installed=True, timer=True, last_sync=None):
@@ -190,3 +191,125 @@ async def test_trigger_sync_exception_re_enables_button():
             btn = pilot.app.screen.query_one("#trigger-btn", Button)
             assert not btn.disabled
             assert pilot.app.screen._sync_running is False
+
+
+# ── _to_mbps() unit tests ────────────────────────────────────────────────────
+
+def test_to_mbps_bytes_per_second():
+    """_to_mbps() converts B/s to Mbps."""
+    result = _to_mbps(1_000_000, "B")
+    assert "Mbps" in result
+
+
+def test_to_mbps_mib_per_second():
+    """_to_mbps() converts MiB/s correctly."""
+    result = _to_mbps(10.0, "MiB")
+    assert "Mbps" in result
+    val = float(result.split()[0])
+    assert val > 0
+
+
+def test_to_mbps_gib_produces_gbps():
+    """_to_mbps() uses Gbps label when speed >= 1000 Mbps."""
+    result = _to_mbps(1.0, "GiB")
+    assert "Gbps" in result
+
+
+# ── _fmt_log_line() unit tests ───────────────────────────────────────────────
+
+def test_fmt_log_line_file_copied():
+    """Per-file Copied entry produces timestamped arrow line."""
+    raw = "2026/05/18 14:30:00 INFO  : raw/Field-Logs/FL-vol-001/scan.pdf: Copied (new)"
+    out = _fmt_log_line(raw)
+    assert out is not None
+    assert "2:30:00 PM" in out
+    assert "scan.pdf" in out
+    assert "⟹" in out
+    assert "Copied" in out
+
+
+def test_fmt_log_line_file_skipped():
+    """Per-file Skipped entry formats correctly."""
+    raw = "2026/05/18 09:05:00 INFO  : raw/Field-Logs/FL-vol-001/scan.pdf: Skipped (same size)"
+    out = _fmt_log_line(raw)
+    assert out is not None
+    assert "Skipped" in out
+
+
+def test_fmt_log_line_blank_info_returns_none():
+    """INFO line with no rest content is dropped (returns None)."""
+    raw = "2026/05/18 14:30:00 INFO  : "
+    out = _fmt_log_line(raw)
+    assert out is None
+
+
+def test_fmt_log_line_blank_line_returns_none():
+    """Completely blank line returns None."""
+    assert _fmt_log_line("") is None
+    assert _fmt_log_line("   ") is None
+
+
+def test_fmt_log_line_checks_all_new():
+    """Checks line with verified=0 returns None (all files were new, nothing to report)."""
+    raw = "Checks: 0 / 10, Listed 10"
+    out = _fmt_log_line(raw)
+    assert out is None
+
+
+def test_fmt_log_line_checks_some_existing():
+    """Checks line with verified>0 reports already-downloaded count."""
+    raw = "Checks: 3 / 10"
+    out = _fmt_log_line(raw)
+    assert out is not None
+    assert "Already downloaded: 3" in out
+    assert "files" in out
+
+
+def test_fmt_log_line_checks_singular():
+    """Checks line with verified=1 uses singular 'file'."""
+    raw = "Checks: 1 / 5"
+    out = _fmt_log_line(raw)
+    assert out is not None
+    assert "1 file" in out
+
+
+def test_fmt_log_line_count_transferred():
+    """Count-based Transferred line becomes 'Files synced: N / M (P%)'."""
+    raw = "Transferred: 3 / 5, 60%"
+    out = _fmt_log_line(raw)
+    assert out is not None
+    assert "Files synced: 3 / 5 (60%)" == out
+
+
+def test_fmt_log_line_speed_converted():
+    """Speed values in summary lines are converted to Mbps/Gbps."""
+    raw = "Transferred: 100 MiB in 10s, 10.0 MiB/s"
+    out = _fmt_log_line(raw)
+    assert out is not None
+    assert "MiB/s" not in out
+    assert "Mbps" in out or "Gbps" in out
+
+
+def test_fmt_log_line_size_converted():
+    """IEC size units in summary lines are normalised."""
+    raw = "Transferred: 512 MiB"
+    out = _fmt_log_line(raw)
+    assert out is not None
+    assert "MiB" not in out
+    assert "MB" in out
+
+
+def test_fmt_log_line_midnight_am():
+    """Hour 0 formats as 12:xx:xx AM."""
+    raw = "2026/05/18 00:05:00 INFO  : some/file.pdf: Copied (new)"
+    out = _fmt_log_line(raw)
+    assert out is not None
+    assert "12:05:00 AM" in out
+
+
+def test_fmt_log_line_noon_pm():
+    """Hour 12 formats as 12:xx:xx PM."""
+    raw = "2026/05/18 12:00:00 INFO  : some/file.pdf: Copied (new)"
+    out = _fmt_log_line(raw)
+    assert out is not None
+    assert "12:00:00 PM" in out
