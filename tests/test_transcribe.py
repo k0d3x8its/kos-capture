@@ -62,6 +62,74 @@ def test_write_md_segments(tmp_path):
     assert "[01:30] World" in content
 
 
+# --- _transcribe_audio() — on_pct callback ---
+
+def test_on_pct_called_per_segment(tmp_path):
+    """on_pct is called once per segment with seg.end / total_duration."""
+    audio = tmp_path / "recording.mp4"
+    audio.write_bytes(b"fake")
+
+    mock_info = MagicMock()
+    mock_info.duration = 10.0
+
+    seg1, seg2 = MagicMock(), MagicMock()
+    seg1.start = 0.0;  seg1.end = 4.0;  seg1.text = " A "
+    seg2.start = 4.0;  seg2.end = 9.0;  seg2.text = " B "
+
+    mock_model = MagicMock()
+    mock_model.transcribe.return_value = ([seg1, seg2], mock_info)
+
+    pct_calls: list[float] = []
+    with patch("core.transcribe.WhisperModel", return_value=mock_model):
+        transcribe._transcribe_audio(audio, on_pct=pct_calls.append)
+
+    assert len(pct_calls) == 2
+    assert abs(pct_calls[0] - 0.4) < 0.01   # 4 / 10
+    assert abs(pct_calls[1] - 0.9) < 0.01   # 9 / 10
+
+
+def test_on_pct_not_called_when_duration_zero(tmp_path):
+    """on_pct is never invoked when audio duration is 0 or unknown."""
+    audio = tmp_path / "recording.mp4"
+    audio.write_bytes(b"fake")
+
+    mock_info = MagicMock()
+    mock_info.duration = 0
+
+    seg = MagicMock()
+    seg.start = 0.0;  seg.end = 2.0;  seg.text = " A "
+
+    mock_model = MagicMock()
+    mock_model.transcribe.return_value = ([seg], mock_info)
+
+    pct_calls: list[float] = []
+    with patch("core.transcribe.WhisperModel", return_value=mock_model):
+        transcribe._transcribe_audio(audio, on_pct=pct_calls.append)
+
+    assert pct_calls == []
+
+
+def test_on_pct_capped_at_one(tmp_path):
+    """on_pct value is capped at 1.0 even if seg.end > total_duration."""
+    audio = tmp_path / "recording.mp4"
+    audio.write_bytes(b"fake")
+
+    mock_info = MagicMock()
+    mock_info.duration = 5.0
+
+    seg = MagicMock()
+    seg.start = 0.0;  seg.end = 6.0;  seg.text = " A "  # end > duration
+
+    mock_model = MagicMock()
+    mock_model.transcribe.return_value = ([seg], mock_info)
+
+    pct_calls: list[float] = []
+    with patch("core.transcribe.WhisperModel", return_value=mock_model):
+        transcribe._transcribe_audio(audio, on_pct=pct_calls.append)
+
+    assert pct_calls == [1.0]
+
+
 # --- _download_audio() ---
 
 def test_download_audio_missing_yt_dlp(tmp_path):
@@ -71,6 +139,92 @@ def test_download_audio_missing_yt_dlp(tmp_path):
     with patch.dict(sys.modules, {"yt_dlp": None}):
         with pytest.raises(RuntimeError, match="yt-dlp is required"):
             transcribe._download_audio("https://example.com", tmp_path)
+
+
+def test_download_audio_progress_hook_registered(tmp_path):
+    """_download_audio registers a yt-dlp progress hook and calls on_dl_pct correctly."""
+    fake_wav = tmp_path / "audio.wav"
+    fake_wav.write_bytes(b"fake")
+
+    captured_hooks: list = []
+
+    class FakeYDL:
+        def __init__(self, opts):
+            captured_hooks.extend(opts.get("progress_hooks", []))
+        def __enter__(self): return self
+        def __exit__(self, *a): pass
+        def extract_info(self, url, download):
+            return {"title": "Test Title"}
+
+    mock_yt_dlp = MagicMock()
+    mock_yt_dlp.YoutubeDL = FakeYDL
+
+    pct_calls: list[float] = []
+    with patch.dict(sys.modules, {"yt_dlp": mock_yt_dlp}):
+        transcribe._download_audio("https://example.com", tmp_path, on_dl_pct=pct_calls.append)
+
+    assert len(captured_hooks) == 1
+    hook = captured_hooks[0]
+
+    hook({"status": "downloading", "downloaded_bytes": 300, "total_bytes": 1000})
+    assert abs(pct_calls[0] - 0.3) < 0.01
+
+    hook({"status": "finished"})
+    assert pct_calls[-1] == 1.0
+
+
+def test_download_audio_progress_hook_uses_estimate(tmp_path):
+    """Hook falls back to total_bytes_estimate when total_bytes is absent."""
+    fake_wav = tmp_path / "audio.wav"
+    fake_wav.write_bytes(b"fake")
+
+    captured_hooks: list = []
+
+    class FakeYDL:
+        def __init__(self, opts):
+            captured_hooks.extend(opts.get("progress_hooks", []))
+        def __enter__(self): return self
+        def __exit__(self, *a): pass
+        def extract_info(self, url, download):
+            return {"title": "T"}
+
+    mock_yt_dlp = MagicMock()
+    mock_yt_dlp.YoutubeDL = FakeYDL
+
+    pct_calls: list[float] = []
+    with patch.dict(sys.modules, {"yt_dlp": mock_yt_dlp}):
+        transcribe._download_audio("https://example.com", tmp_path, on_dl_pct=pct_calls.append)
+
+    hook = captured_hooks[0]
+    hook({"status": "downloading", "downloaded_bytes": 500, "total_bytes_estimate": 1000})
+    assert abs(pct_calls[0] - 0.5) < 0.01
+
+
+def test_download_audio_no_pct_when_total_unknown(tmp_path):
+    """Hook does not call on_dl_pct when total size is unknown."""
+    fake_wav = tmp_path / "audio.wav"
+    fake_wav.write_bytes(b"fake")
+
+    captured_hooks: list = []
+
+    class FakeYDL:
+        def __init__(self, opts):
+            captured_hooks.extend(opts.get("progress_hooks", []))
+        def __enter__(self): return self
+        def __exit__(self, *a): pass
+        def extract_info(self, url, download):
+            return {"title": "T"}
+
+    mock_yt_dlp = MagicMock()
+    mock_yt_dlp.YoutubeDL = FakeYDL
+
+    pct_calls: list[float] = []
+    with patch.dict(sys.modules, {"yt_dlp": mock_yt_dlp}):
+        transcribe._download_audio("https://example.com", tmp_path, on_dl_pct=pct_calls.append)
+
+    hook = captured_hooks[0]
+    hook({"status": "downloading", "downloaded_bytes": 500})  # no total
+    assert pct_calls == []
 
 
 # --- run() — meetings path ---
@@ -93,7 +247,7 @@ def test_run_meetings_writes_md(tmp_path):
 
     # Filename: spaces in title replaced with hyphens
     assert out.exists()
-    assert out.name == f"{date.today().isoformat()}-my-meeting.md"
+    assert out.name == f"my-meeting-{date.today().isoformat()}.md"
 
     content = out.read_text()
     assert "# my meeting" in content
