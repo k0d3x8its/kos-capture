@@ -20,6 +20,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import core.config as config
+from screens.ingest import IngestScreen
 from textual.app import ComposeResult
 from textual.binding import Binding
 from textual.containers import Vertical
@@ -97,33 +99,23 @@ class ReadyScreen(Screen):
         margin-bottom: 1;
     }
 
-    #ingest-box {
-        border: round $panel;
-        padding: 0 1;
-        height: auto;
+    #ingest-btn {
+        width: 100%;
         margin-bottom: 1;
     }
 
-    #ingest-cmd {
-        color: #00ff00;
-        text-style: bold;
+    #more-files-btn {
+        width: 100%;
+        margin-bottom: 1;
     }
 
-    #ingest-note {
-        color: $text-muted;
-        height: 1;
+    #transcribe-btn {
+        width: 100%;
+        margin-bottom: 1;
     }
 
     #done-btn {
         width: 100%;
-        margin-top: 1;
-        background: #00ff00;
-        color: #000000;
-    }
-
-    #done-btn:hover {
-        background: #33ff33;
-        color: #000000;
     }
     """
 
@@ -135,14 +127,10 @@ class ReadyScreen(Screen):
             yield Static(f"Session Complete — {count} {noun} Ready", id="title")
             yield RichLog(id="file-log", markup=True, highlight=False, wrap=False)
 
-            with Vertical(id="ingest-box"):
-                yield Static("/kos-ingest", id="ingest-cmd")
-                yield Static(
-                    "Run in your agent to process the files above.",
-                    id="ingest-note",
-                )
-
-            yield Button("Done →", id="done-btn", variant="primary")
+            yield Button("Ingest Now →",          id="ingest-btn",    variant="success")
+            yield Button("More Files from Inbox →", id="more-files-btn", variant="primary")
+            yield Button("Transcribe More →",       id="transcribe-btn", variant="primary")
+            yield Button("Done →",                  id="done-btn",       variant="default")
 
         yield Footer()
 
@@ -191,12 +179,47 @@ class ReadyScreen(Screen):
 
     def on_mount(self) -> None:
         self._populate_log()
+        self._update_ingest_btn()
 
     def on_show(self) -> None:
         self._populate_log()
+        self._update_ingest_btn()
+
+    def _update_ingest_btn(self) -> None:
+        """Enable Ingest Now only when config is valid and vault_root exists."""
+        btn = self.query_one("#ingest-btn", Button)
+        if not config.exists():
+            btn.disabled = True
+            btn.tooltip  = "Run Setup first"
+            return
+        try:
+            cfg = config.load()
+            if cfg.vault_root.exists():
+                btn.disabled = False
+                btn.tooltip  = None
+            else:
+                btn.disabled = True
+                btn.tooltip  = "Vault root not found"
+        except Exception:
+            btn.disabled = True
+            btn.tooltip  = "Config error — run Setup"
+
+    def _start_ingest(self) -> None:
+        try:
+            cfg = config.load()
+        except Exception as exc:
+            self.app.notify(f"Config error: {exc}", severity="error")
+            return
+        self.app.push_screen(IngestScreen(cfg.vault_root))
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
-        if event.button.id == "done-btn":
+        if event.button.id == "ingest-btn":
+            self._start_ingest()
+        elif event.button.id == "more-files-btn":
+            self.app.switch_screen("inbox")
+        elif event.button.id == "transcribe-btn":
+            self.app.switch_screen("transcribe")
+        elif event.button.id == "done-btn":
             self.app.switch_screen("home")
 
     def action_go_back(self) -> None:
