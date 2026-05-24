@@ -8,7 +8,7 @@ pushing the screen and verify render + navigation behaviour.
 """
 
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 from textual.widgets import Button, RichLog, Static
@@ -135,14 +135,57 @@ async def test_ready_shows_file_paths(tmp_path):
             assert "note.pdf" in written
 
 
-async def test_ready_shows_ingest_instruction():
-    """The /kos-ingest command widget is present."""
-    with patch("app.config.exists", return_value=False):
+async def test_ready_ingest_btn_present():
+    """Ingest Now button is present in the DOM."""
+    with patch("app.config.exists", return_value=False), \
+         patch("screens.ready.config.exists", return_value=False):
         async with KosCaptureApp().run_test() as pilot:
             await pilot.pause()
             await _open_ready(pilot, [Path("/some/file.pdf")])
-            cmd = str(pilot.app.screen.query_one("#ingest-cmd", Static).content)
-            assert "/kos-ingest" in cmd
+            assert pilot.app.screen.query_one("#ingest-btn", Button) is not None
+
+
+async def test_ready_ingest_btn_disabled_when_no_config():
+    """Ingest Now button is disabled when no config file exists."""
+    with patch("app.config.exists", return_value=False), \
+         patch("screens.ready.config.exists", return_value=False):
+        async with KosCaptureApp().run_test() as pilot:
+            await pilot.pause()
+            await _open_ready(pilot, [Path("/some/file.pdf")])
+            btn = pilot.app.screen.query_one("#ingest-btn", Button)
+            assert btn.disabled is True
+
+
+async def test_ready_ingest_btn_enabled_with_valid_config(tmp_path):
+    """Ingest Now button is enabled when config is valid and vault_root exists."""
+    vault = tmp_path / "vault"
+    vault.mkdir()
+    mock_cfg = MagicMock()
+    mock_cfg.vault_root = vault
+
+    with patch("app.config.exists", return_value=False), \
+         patch("screens.ready.config.exists", return_value=True), \
+         patch("screens.ready.config.load", return_value=mock_cfg):
+        async with KosCaptureApp().run_test() as pilot:
+            await pilot.pause()
+            await _open_ready(pilot, [Path("/some/file.pdf")])
+            btn = pilot.app.screen.query_one("#ingest-btn", Button)
+            assert btn.disabled is False
+
+
+async def test_ready_ingest_btn_disabled_when_vault_missing(tmp_path):
+    """Ingest Now button is disabled when vault_root does not exist on disk."""
+    mock_cfg = MagicMock()
+    mock_cfg.vault_root = tmp_path / "nonexistent-vault"
+
+    with patch("app.config.exists", return_value=False), \
+         patch("screens.ready.config.exists", return_value=True), \
+         patch("screens.ready.config.load", return_value=mock_cfg):
+        async with KosCaptureApp().run_test() as pilot:
+            await pilot.pause()
+            await _open_ready(pilot, [Path("/some/file.pdf")])
+            btn = pilot.app.screen.query_one("#ingest-btn", Button)
+            assert btn.disabled is True
 
 
 # ── Navigation ───────────────────────────────────────────────────────────────
@@ -257,3 +300,80 @@ async def test_ready_on_show_reflects_new_results(tmp_path):
             assert "second.pdf" in written
             title = str(pilot.app.screen.query_one("#title", Static).content)
             assert "2" in title
+
+
+# ── More-files / Transcribe buttons ─────────────────────────────────────────
+
+async def test_ready_more_files_btn_present():
+    """More Files from Inbox button is present in the DOM."""
+    with patch("app.config.exists", return_value=False):
+        async with KosCaptureApp().run_test() as pilot:
+            await pilot.pause()
+            await _open_ready(pilot, [Path("/some/file.pdf")])
+            assert pilot.app.screen.query_one("#more-files-btn", Button) is not None
+
+
+async def test_ready_transcribe_btn_present():
+    """Transcribe More button is present in the DOM."""
+    with patch("app.config.exists", return_value=False):
+        async with KosCaptureApp().run_test() as pilot:
+            await pilot.pause()
+            await _open_ready(pilot, [Path("/some/file.pdf")])
+            assert pilot.app.screen.query_one("#transcribe-btn", Button) is not None
+
+
+async def test_ready_more_files_btn_goes_inbox(tmp_path):
+    """More Files from Inbox button navigates to InboxScreen."""
+    dest = tmp_path / "note.pdf"
+    with patch("app.config.exists", return_value=True), \
+         patch("screens.inbox.config.exists", return_value=False):
+        async with KosCaptureApp().run_test() as pilot:
+            await pilot.pause()
+            await _open_ready(pilot, [dest])
+            pilot.app.screen.query_one("#more-files-btn", Button).press()
+            await pilot.pause()
+            assert pilot.app.screen.__class__.__name__ == "InboxScreen"
+
+
+# ── _start_ingest() exception path ───────────────────────────────────────────
+
+async def test_start_ingest_config_error_shows_notification():
+    """_start_ingest() notifies with severity='error' when config.load() raises."""
+    with patch("app.config.exists", return_value=False), \
+         patch("screens.ready.config.exists", return_value=True), \
+         patch("screens.ready.config.load", side_effect=ValueError("bad config")):
+        async with KosCaptureApp().run_test() as pilot:
+            await pilot.pause()
+            await _open_ready(pilot, [Path("/some/file.pdf")])
+            screen = pilot.app.screen
+            with patch.object(screen.app, "notify") as mock_notify:
+                screen._start_ingest()
+                await pilot.pause()
+                mock_notify.assert_called_once()
+                _, kwargs = mock_notify.call_args
+                assert kwargs.get("severity") == "error"
+
+
+async def test_start_ingest_config_error_stays_on_ready():
+    """_start_ingest() does not push IngestScreen when config is broken."""
+    with patch("app.config.exists", return_value=False), \
+         patch("screens.ready.config.exists", return_value=True), \
+         patch("screens.ready.config.load", side_effect=ValueError("bad config")):
+        async with KosCaptureApp().run_test() as pilot:
+            await pilot.pause()
+            await _open_ready(pilot, [Path("/some/file.pdf")])
+            pilot.app.screen._start_ingest()
+            await pilot.pause()
+            assert pilot.app.screen.__class__.__name__ == "ReadyScreen"
+
+
+async def test_ready_transcribe_btn_goes_transcribe(tmp_path):
+    """Transcribe More button navigates to TranscribeScreen."""
+    dest = tmp_path / "note.pdf"
+    with patch("app.config.exists", return_value=False):
+        async with KosCaptureApp().run_test() as pilot:
+            await pilot.pause()
+            await _open_ready(pilot, [dest])
+            pilot.app.screen.query_one("#transcribe-btn", Button).press()
+            await pilot.pause()
+            assert pilot.app.screen.__class__.__name__ == "TranscribeScreen"
