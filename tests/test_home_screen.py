@@ -10,12 +10,14 @@ Navigation menu tests verify both letter-key shortcuts and arrow+Enter paths.
 """
 
 from datetime import datetime
-from unittest.mock import patch
+from pathlib import Path
+from unittest.mock import MagicMock, patch
 
 from textual.widgets import ListView, Static
 
 from app import KosCaptureApp
 from core.rclone import RcloneStatus
+from screens.home import _status_line
 
 
 def _make_status(installed=True, timer=True, last_sync=None):
@@ -286,3 +288,91 @@ async def test_error_modal_dismiss_setup_pushes_setup_screen():
             screen._on_error_modal_dismiss("setup")
             await pilot.pause()
             assert pilot.app.screen.query_one("#save-btn") is not None
+
+
+# ── _status_line() pure function ──────────────────────────────────────────────
+
+def test_status_line_ok_contains_checkmark():
+    """ok=True produces a ✓ icon in the output."""
+    out = _status_line(True, "rclone installed")
+    assert "✓" in out
+    assert "rclone installed" in out
+
+
+def test_status_line_fail_contains_cross():
+    """ok=False produces a ✗ icon in the output."""
+    out = _status_line(False, "rclone installed")
+    assert "✗" in out
+    assert "rclone installed" in out
+
+
+def test_status_line_ok_uses_green():
+    """ok=True uses green Rich markup."""
+    out = _status_line(True, "label")
+    assert "#00ff00" in out or "green" in out
+
+
+def test_status_line_fail_uses_red():
+    """ok=False uses red Rich markup."""
+    out = _status_line(False, "label")
+    assert "[bold red]" in out
+
+
+def test_status_line_ok_false_never_shows_checkmark():
+    """ok=False must not contain ✓ — avoids confusing mixed output."""
+    assert "✓" not in _status_line(False, "any label")
+
+
+def test_status_line_ok_true_never_shows_cross():
+    """ok=True must not contain ✗ — avoids confusing mixed output."""
+    assert "✗" not in _status_line(True, "any label")
+
+
+# ── action_go_ready() logic ───────────────────────────────────────────────────
+
+async def test_v_key_no_results_shows_warning():
+    """Pressing 'v' with empty session_results shows a warning notification."""
+    status = _make_status()
+    with patch("app.config.exists", return_value=False), \
+         patch("screens.home.rclone.status", return_value=status), \
+         patch("screens.home.config.exists", return_value=False):
+        async with KosCaptureApp().run_test() as pilot:
+            await pilot.pause()
+            await _open_home(pilot)
+            pilot.app.session_results = []
+            with patch.object(pilot.app.screen, "notify") as mock_notify:
+                await pilot.press("v")
+                await pilot.pause()
+                mock_notify.assert_called_once()
+                _, kwargs = mock_notify.call_args
+                assert kwargs.get("severity") == "warning"
+
+
+async def test_v_key_with_results_navigates_to_ready(tmp_path):
+    """Pressing 'v' with session_results switches to ReadyScreen."""
+    status = _make_status()
+    with patch("app.config.exists", return_value=False), \
+         patch("screens.home.rclone.status", return_value=status), \
+         patch("screens.home.config.exists", return_value=False):
+        async with KosCaptureApp().run_test() as pilot:
+            await pilot.pause()
+            await _open_home(pilot)
+            pilot.app.session_results = [tmp_path / "note.pdf"]
+            await pilot.press("v")
+            await pilot.pause()
+            assert pilot.app.screen.__class__.__name__ == "ReadyScreen"
+
+
+async def test_on_error_modal_dismiss_none_does_not_navigate():
+    """_on_error_modal_dismiss(None) stays on HomeScreen — Dismiss button path."""
+    status = _make_status()
+    with patch("app.config.exists", return_value=False), \
+         patch("screens.home.rclone.status", return_value=status), \
+         patch("screens.home.config.exists", return_value=False):
+        async with KosCaptureApp().run_test() as pilot:
+            await pilot.pause()
+            await _open_home(pilot)
+            home = pilot.app.screen
+            home._on_error_modal_dismiss(None)
+            await pilot.pause()
+            assert pilot.app.screen.__class__.__name__ == "HomeScreen"
