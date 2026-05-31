@@ -19,7 +19,7 @@ All transcription runs locally on CPU (int8 quantisation). No audio or
 transcript data leaves the machine.
 
 Output format:
-    raw/transcripts/<source_type>/YYYY-MM-DD-<title>.md
+    raw/transcripts/<source_type>/<title>-YYYY-MM-DD.md
 
     # <title>
 
