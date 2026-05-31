@@ -1,5 +1,7 @@
 # Changelog
 
+## [Unreleased]
+
 ## v1.1.0 (2026-05-24)
 
 Full IngestScreen implementation — drives `claude` CLI in stream-JSON mode, renders live output as syntax-highlighted Rich log, and supports bidirectional user input mid-session. Ready screen navigation and escape-guard bugs fixed. Test suite expanded to cover logic paths, not just rendered outcomes.
