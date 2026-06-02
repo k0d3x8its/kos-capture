@@ -293,6 +293,52 @@ async def test_transcription_error_shows_message_and_clears_transcribing():
             assert "yt-dlp" in written or "error" in written.lower()
 
 
+async def test_t_key_after_error_resets_to_source_step():
+    """Pressing 't' after a transcription error resets to step-source (retry flow)."""
+    with patch("app.config.exists", return_value=False):
+        async with KosCaptureApp().run_test() as pilot:
+            await _open_transcribe(pilot)
+            screen = pilot.app.screen
+            screen._transcribing = True
+            screen._go_to("step-running")
+            screen._on_transcription_error("connection timeout")
+            await pilot.pause()
+            await pilot.press("t")
+            await pilot.pause()
+            await pilot.pause()
+            assert screen.query_one(ContentSwitcher).current == "step-source"
+
+
+async def test_retry_button_visible_after_error():
+    """Try Again button is shown after a transcription error."""
+    with patch("app.config.exists", return_value=False):
+        async with KosCaptureApp().run_test() as pilot:
+            await _open_transcribe(pilot)
+            screen = pilot.app.screen
+            screen._transcribing = True
+            screen._go_to("step-running")
+            assert not screen.query_one("#retry-btn", Button).display
+            screen._on_transcription_error("connection timeout")
+            await pilot.pause()
+            assert screen.query_one("#retry-btn", Button).display
+
+
+async def test_retry_button_press_resets_to_source_step():
+    """Pressing Try Again button resets to step-source."""
+    with patch("app.config.exists", return_value=False):
+        async with KosCaptureApp().run_test() as pilot:
+            await _open_transcribe(pilot)
+            screen = pilot.app.screen
+            screen._transcribing = True
+            screen._go_to("step-running")
+            screen._on_transcription_error("connection timeout")
+            await pilot.pause()
+            screen.query_one("#retry-btn", Button).press()
+            await pilot.pause()
+            await pilot.pause()
+            assert screen.query_one(ContentSwitcher).current == "step-source"
+
+
 async def test_worker_success_path(tmp_path):
     """Full Begin → worker → done path appends result and navigates to Ready."""
     mp4 = tmp_path / "recording.mp4"
