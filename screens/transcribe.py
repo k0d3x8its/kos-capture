@@ -190,6 +190,12 @@ class TranscribeScreen(Screen):
         margin-bottom: 0;
     }
 
+    #retry-btn {
+        width: 100%;
+        margin-top: 1;
+        display: none;
+    }
+
     #hint {
         color: $text-muted;
         text-align: center;
@@ -230,6 +236,7 @@ class TranscribeScreen(Screen):
                     yield Static("Transcription", id="tr-label", classes="progress-label")
                     yield ProgressBar(total=100, show_eta=False, id="run-progress")
                     yield Static("", id="run-status")
+                    yield Button("Try Again", id="retry-btn", variant="primary")
             yield Static("\\[Enter] select  ·  \\[Esc] back", id="hint")
         yield Footer()
 
@@ -288,6 +295,11 @@ class TranscribeScreen(Screen):
         if event.key == "escape":
             event.stop()
             self.action_go_back()
+        elif event.key == "t" and self._step == "step-running" and not self._transcribing:
+            # App-level "t" binding is a no-op when already on TranscribeScreen;
+            # intercept here to give the user a direct retry path after an error.
+            event.stop()
+            self._reset_to_source()
 
     def action_go_back(self) -> None:
         if self._transcribing:
@@ -325,6 +337,8 @@ class TranscribeScreen(Screen):
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "begin-btn":
             self._begin()
+        elif event.button.id == "retry-btn":
+            self._reset_to_source()
 
     # ── Validation + worker launch ──────────────────────────────────────────
 
@@ -358,6 +372,7 @@ class TranscribeScreen(Screen):
             return
 
         self._transcribing = True
+        self.query_one("#retry-btn").display = False
         self._go_to("step-running")
 
         source_label = f"[bold]{self._source_type.capitalize()}[/bold]  {raw}"
@@ -436,5 +451,6 @@ class TranscribeScreen(Screen):
         log = self.query_one("#run-log", RichLog)
         log.write(f"[red]Error: {message}[/red]")
         self.query_one("#run-status", Static).update("[red]Transcription failed.[/red]")
-        self.query_one("#hint", Static).update("[Esc] back to try again")
+        self.query_one("#retry-btn").display = True
+        self.query_one("#hint", Static).update("\\[Esc] back  ·  \\[t] try again")
         self.app.notify("Transcription failed", severity="error")
