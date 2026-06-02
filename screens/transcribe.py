@@ -103,7 +103,7 @@ class TranscribeScreen(Screen):
 
     ContentSwitcher {
         height: auto;
-        max-height: 18;
+        max-height: 26;
     }
 
     .choice-list {
