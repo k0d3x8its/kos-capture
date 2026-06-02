@@ -293,12 +293,13 @@ async def test_transcription_error_shows_message_and_clears_transcribing():
             assert "yt-dlp" in written or "error" in written.lower()
 
 
-async def test_t_key_after_error_resets_to_source_step():
-    """Pressing 't' after a transcription error resets to step-source (retry flow)."""
+async def test_t_key_after_error_returns_to_input_step():
+    """Pressing 't' after a transcription error returns to step-input for the same source."""
     with patch("app.config.exists", return_value=False):
         async with KosCaptureApp().run_test() as pilot:
             await _open_transcribe(pilot)
             screen = pilot.app.screen
+            screen._source_type = "youtube"
             screen._transcribing = True
             screen._go_to("step-running")
             screen._on_transcription_error("connection timeout")
@@ -306,7 +307,7 @@ async def test_t_key_after_error_resets_to_source_step():
             await pilot.press("t")
             await pilot.pause()
             await pilot.pause()
-            assert screen.query_one(ContentSwitcher).current == "step-source"
+            assert screen.query_one(ContentSwitcher).current == "step-input"
 
 
 async def test_retry_button_visible_after_error():
@@ -315,6 +316,7 @@ async def test_retry_button_visible_after_error():
         async with KosCaptureApp().run_test() as pilot:
             await _open_transcribe(pilot)
             screen = pilot.app.screen
+            screen._source_type = "youtube"
             screen._transcribing = True
             screen._go_to("step-running")
             assert not screen.query_one("#retry-btn", Button).display
@@ -323,12 +325,13 @@ async def test_retry_button_visible_after_error():
             assert screen.query_one("#retry-btn", Button).display
 
 
-async def test_retry_button_press_resets_to_source_step():
-    """Pressing Try Again button resets to step-source."""
+async def test_retry_button_press_returns_to_input_step():
+    """Pressing Try Again returns to step-input for the same source type."""
     with patch("app.config.exists", return_value=False):
         async with KosCaptureApp().run_test() as pilot:
             await _open_transcribe(pilot)
             screen = pilot.app.screen
+            screen._source_type = "podcasts"
             screen._transcribing = True
             screen._go_to("step-running")
             screen._on_transcription_error("connection timeout")
@@ -336,7 +339,25 @@ async def test_retry_button_press_resets_to_source_step():
             screen.query_one("#retry-btn", Button).press()
             await pilot.pause()
             await pilot.pause()
-            assert screen.query_one(ContentSwitcher).current == "step-source"
+            assert screen.query_one(ContentSwitcher).current == "step-input"
+
+
+async def test_retry_preserves_source_input_value():
+    """Try Again keeps the source input value so the user doesn't have to retype."""
+    with patch("app.config.exists", return_value=False):
+        async with KosCaptureApp().run_test() as pilot:
+            await _open_transcribe(pilot)
+            screen = pilot.app.screen
+            screen._source_type = "youtube"
+            screen.query_one("#source-input", Input).value = "https://youtu.be/abc123"
+            screen._transcribing = True
+            screen._go_to("step-running")
+            screen._on_transcription_error("network error")
+            await pilot.pause()
+            screen.query_one("#retry-btn", Button).press()
+            await pilot.pause()
+            await pilot.pause()
+            assert screen.query_one("#source-input", Input).value == "https://youtu.be/abc123"
 
 
 async def test_worker_success_path(tmp_path):
