@@ -2,6 +2,15 @@
 
 ## [Unreleased]
 
+### 2026-06-02
+#### Fixed
+- 🛠️ `screens/transcribe.py` — "Try Again" button now appears after a transcription failure; pressing it or `t` resets to source selection. The app-level `t` binding was a no-op when already on TranscribeScreen, leaving the user stuck in the error state with no visible retry path. Unescaped `[Esc]` Rich markup in the error hint also corrected [\[921f6fd\]](https://github.com/k0d3x8its/kos-capture/commit/921f6fddbfe57c1ef5348604a70f3a2791c45bff)
+
+#### Changed
+- ♻️ `screens/transcribe.py` — docstring corrected: output filename format is `Title-YYYY-MM-DD.md` (title-first), not date-first as previously documented [\[4040487\]](https://github.com/k0d3x8its/kos-capture/commit/40404878d4075dc76a97fe330129cc9ebbe2bde4)
+- ♻️ `tests/test_transcribe_screen.py` — tests added for Try Again button visibility on error and button-press retry flow [\[5b906dc\]](https://github.com/k0d3x8its/kos-capture/commit/5b906dc8c1a86ef55947d57a7b9e87f0708a0767)
+- ♻️ `tests/test_transcribe.py` — `test_write_md_no_frontmatter` added to assert `_write_md()` output never starts with YAML frontmatter delimiters, locking in the no-frontmatter contract [\[b49ec28\]](https://github.com/k0d3x8its/kos-capture/commit/b49ec28ed683ec55397b9e0638997add526e7c32)
+
 ## v1.1.0 (2026-05-24)
 
 Full IngestScreen implementation — drives `claude` CLI in stream-JSON mode, renders live output as syntax-highlighted Rich log, and supports bidirectional user input mid-session. Ready screen navigation and escape-guard bugs fixed. Test suite expanded to cover logic paths, not just rendered outcomes.
