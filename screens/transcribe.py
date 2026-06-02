@@ -194,6 +194,7 @@ class TranscribeScreen(Screen):
         width: 100%;
         margin-top: 1;
         display: none;
+        color: #000000;
     }
 
     #hint {
