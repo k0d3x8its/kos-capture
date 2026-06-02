@@ -194,7 +194,6 @@ class TranscribeScreen(Screen):
         width: 100%;
         margin-top: 1;
         display: none;
-        color: #000000;
     }
 
     #hint {
@@ -237,7 +236,7 @@ class TranscribeScreen(Screen):
                     yield Static("Transcription", id="tr-label", classes="progress-label")
                     yield ProgressBar(total=100, show_eta=False, id="run-progress")
                     yield Static("", id="run-status")
-                    yield Button("Try Again", id="retry-btn", variant="primary")
+                    yield Button("Try Again", id="retry-btn", variant="warning")
             yield Static("\\[Enter] select  ·  \\[Esc] back", id="hint")
         yield Footer()
 
