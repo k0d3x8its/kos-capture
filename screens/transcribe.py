@@ -252,6 +252,12 @@ class TranscribeScreen(Screen):
         self._go_to("step-source")
         self.query_one("#errors", Static).update("")
 
+    def _retry_to_input(self) -> None:
+        self.query_one("#retry-btn").display = False
+        self.query_one("#source-input", Input).placeholder = _SOURCE_PLACEHOLDERS.get(self._source_type, "")
+        self.query_one("#title-input", Input).placeholder = _TITLE_PLACEHOLDERS.get(self._source_type, "")
+        self._go_to("step-input")
+
     # ── Step helpers ────────────────────────────────────────────────────────
 
     def _update_step_label(self) -> None:
@@ -299,7 +305,7 @@ class TranscribeScreen(Screen):
             # App-level "t" binding is a no-op when already on TranscribeScreen;
             # intercept here to give the user a direct retry path after an error.
             event.stop()
-            self._reset_to_source()
+            self._retry_to_input()
 
     def action_go_back(self) -> None:
         if self._transcribing:
@@ -338,7 +344,7 @@ class TranscribeScreen(Screen):
         if event.button.id == "begin-btn":
             self._begin()
         elif event.button.id == "retry-btn":
-            self._reset_to_source()
+            self._retry_to_input()
 
     # ── Validation + worker launch ──────────────────────────────────────────
 
