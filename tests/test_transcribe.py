@@ -94,6 +94,13 @@ def test_write_md_segments(tmp_path):
     assert "[01:30] World" in content
 
 
+def test_write_md_no_frontmatter(tmp_path):
+    """_write_md() output does not start with YAML frontmatter delimiters."""
+    out = tmp_path / "out.md"
+    transcribe._write_md([(0.0, "Hello")], "Any Title", out)
+    assert not out.read_text().startswith("---")
+
+
 # --- _transcribe_audio() — on_pct callback ---
 
 def test_on_pct_called_per_segment(tmp_path):
