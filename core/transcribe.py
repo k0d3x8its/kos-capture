@@ -54,6 +54,7 @@ def _download_audio(
     url: str,
     tmp_dir: Path,
     on_dl_pct: Callable[[float], None] | None = None,
+    source_type: str = "",
 ) -> tuple[Path, str]:
     """Download audio from a URL via yt-dlp; return (wav_path, title).
 
@@ -84,6 +85,11 @@ def _download_audio(
         "no_warnings": True,
         "progress_hooks": [_progress_hook],
     }
+    if source_type == "youtube":
+        # Strip community-tagged sponsor segments before transcription so they
+        # never appear in the raw transcript — no extra dependency, yt-dlp calls
+        # sponsor.ajay.app automatically when this key is set.
+        opts["sponsorblock_remove"] = ["sponsor", "selfpromo", "interaction"]
     with yt_dlp.YoutubeDL(opts) as ydl:
         info = ydl.extract_info(url, download=True)
         title = info.get("title", "audio")
@@ -157,7 +163,7 @@ def run(
         with tempfile.TemporaryDirectory() as tmp:
             tmp_dir = Path(tmp)
             _emit("Downloading audio via yt-dlp…")
-            audio_path, yt_title = _download_audio(str(source), tmp_dir, on_dl_pct)
+            audio_path, yt_title = _download_audio(str(source), tmp_dir, on_dl_pct, source_type)
             _title = title or yt_title
             _emit(f'Audio ready — "{_title}"')
             _emit("Transcribing… this may take several minutes on CPU")
