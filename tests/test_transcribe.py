@@ -266,6 +266,55 @@ def test_download_audio_no_pct_when_total_unknown(tmp_path):
     assert pct_calls == []
 
 
+def test_download_audio_sponsorblock_set_for_youtube(tmp_path):
+    """SponsorBlock opts are injected when source_type is 'youtube'."""
+    fake_wav = tmp_path / "audio.wav"
+    fake_wav.write_bytes(b"fake")
+
+    captured_opts: list[dict] = []
+
+    class FakeYDL:
+        def __init__(self, opts):
+            captured_opts.append(opts)
+        def __enter__(self): return self
+        def __exit__(self, *a): pass
+        def extract_info(self, url, download):
+            return {"title": "T"}
+
+    mock_yt_dlp = MagicMock()
+    mock_yt_dlp.YoutubeDL = FakeYDL
+
+    with patch.dict(sys.modules, {"yt_dlp": mock_yt_dlp}):
+        transcribe._download_audio("https://example.com", tmp_path, source_type="youtube")
+
+    opts = captured_opts[0]
+    assert opts.get("sponsorblock_remove") == ["sponsor", "selfpromo", "interaction"]
+
+
+def test_download_audio_sponsorblock_absent_for_podcasts(tmp_path):
+    """SponsorBlock opts are NOT injected for non-YouTube source types."""
+    fake_wav = tmp_path / "audio.wav"
+    fake_wav.write_bytes(b"fake")
+
+    captured_opts: list[dict] = []
+
+    class FakeYDL:
+        def __init__(self, opts):
+            captured_opts.append(opts)
+        def __enter__(self): return self
+        def __exit__(self, *a): pass
+        def extract_info(self, url, download):
+            return {"title": "T"}
+
+    mock_yt_dlp = MagicMock()
+    mock_yt_dlp.YoutubeDL = FakeYDL
+
+    with patch.dict(sys.modules, {"yt_dlp": mock_yt_dlp}):
+        transcribe._download_audio("https://example.com", tmp_path, source_type="podcasts")
+
+    assert "sponsorblock_remove" not in captured_opts[0]
+
+
 # --- run() — meetings path ---
 
 def test_run_meetings_writes_md(tmp_path):
