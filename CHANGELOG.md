@@ -2,6 +2,21 @@
 
 ## [Unreleased]
 
+## v1.2.0 (2026-06-03)
+
+#### Added
+- ➕ `core/transcribe.py` — SponsorBlock integration strips sponsor segments from YouTube audio before transcription; `sponsorblock_remove` yt-dlp option applied only when `source_type="youtube"` so podcasts are unaffected [\[c4d5b8a\]](https://github.com/k0d3x8its/kos-capture/commit/c4d5b8a9e1a3d370de6b26e652aac784d6b9c38a)
+- ➕ `screens/transcribe.py` — retry now returns to the input step for the same source type instead of resetting to source selection, preserving the user's source choice and reducing re-entry friction [\[c13d1c7\]](https://github.com/k0d3x8its/kos-capture/commit/c13d1c74de2abcdebe5eb55843b86cb951daa3ee)
+
+#### Fixed
+- 🛠️ `screens/transcribe.py` — ContentSwitcher `max-height` increased to expose the Try Again button without requiring the user to scroll [\[f6a573f\]](https://github.com/k0d3x8its/kos-capture/commit/f6a573f61669fec46c3ab301c53d16641c6b51b4)
+- 🛠️ `screens/transcribe.py` — Try Again button changed to `warning` variant for sufficient contrast against the terminal background [\[3b9d06a\]](https://github.com/k0d3x8its/kos-capture/commit/3b9d06a2fb5d9f0e415bc485953cb329b398d704)
+- 🛠️ `screens/transcribe.py` — Try Again button text set to black; green text on green button background was invisible [\[e83ce92\]](https://github.com/k0d3x8its/kos-capture/commit/e83ce929bc4ddf5c2df4bee33ba327f676cf02b3)
+
+#### Changed
+- ♻️ `tests/test_transcribe.py` — SponsorBlock option assertions added: `sponsorblock_remove` present in yt-dlp opts for YouTube, absent for podcasts [\[cdff21e\]](https://github.com/k0d3x8its/kos-capture/commit/cdff21e6ece40788819511217223626f8c5f030b)
+- ♻️ `tests/test_transcribe_screen.py` — retry tests updated to verify step-input return and that source-type input is preserved across retry [\[94f57ef\]](https://github.com/k0d3x8its/kos-capture/commit/94f57efb8e7366936d368af08a6913d3aa07cfd8)
+
 ### 2026-06-02
 #### Fixed
 - 🛠️ `screens/transcribe.py` — "Try Again" button now appears after a transcription failure; pressing it or `t` resets to source selection. The app-level `t` binding was a no-op when already on TranscribeScreen, leaving the user stuck in the error state with no visible retry path. Unescaped `[Esc]` Rich markup in the error hint also corrected [\[921f6fd\]](https://github.com/k0d3x8its/kos-capture/commit/921f6fddbfe57c1ef5348604a70f3a2791c45bff)
