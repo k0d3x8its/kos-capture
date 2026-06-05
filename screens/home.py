@@ -188,7 +188,7 @@ class HomeScreen(Screen):
                 yield Static(banner, id="banner")
                 yield Static("─" * 54, id="separator-top")
                 yield Static(
-                    "Capture freely. Organize strategically  —  v1.1.0",
+                    "Capture freely. Organize strategically  —  v1.2.0",
                     id="tagline",
                 )
                 yield Static("─" * 40, id="separator-bottom")
